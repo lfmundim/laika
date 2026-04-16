@@ -1,71 +1,70 @@
-# laika README
+# Laika
 
-This is the README for your extension "laika". After writing up a brief description, we recommend including the following sections.
+A VS Code extension that adds a sidebar panel for browsing and sending `.http` file requests — a visual companion to the plain-text HTTP workflow, without leaving the editor.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### HTTP Files sidebar
+A dedicated Activity Bar tab lists every `.http` file in your workspace. Expand any file to see its individual requests. The tree refreshes automatically when files are created, deleted, or changed.
 
-For example if there is an image subfolder under your extension project workspace:
+### .http file format
+Laika follows the same format used by the [REST Client](https://github.com/Huachao/vscode-restclient) extension:
 
-\!\[feature X\]\(images/feature-x.png\)
+```http
+@baseUrl = https://api.example.com
+@token = abc123
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### Get all users
+# @name listUsers
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
+Accept: application/json
 
-## Requirements
+###
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+# @name createUser
+POST {{baseUrl}}/users
+Content-Type: application/json
 
-## Extension Settings
+{
+  "name": "Laika",
+  "role": "first dog in space"
+}
+```
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+**Supported syntax:**
+| Syntax | Description |
+|---|---|
+| `###` | Separates requests within a file |
+| `### Label` | Optional label on the separator (used as request name) |
+| `# @name MyRequest` | Named request annotation (takes priority over separator label) |
+| `@varName = value` | Declares a file-scoped variable |
+| `{{varName}}` | Substitutes a variable in URLs, headers, and bodies |
+| `Key: Value` | Request header |
+| *(blank line)* | Separates headers from the request body |
 
-For example:
+## Usage
 
-This extension contributes the following settings:
+> **Note:** Request sending (WebView panel) is coming in the next release. The sidebar and parser are fully functional today.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+1. Open a workspace containing `.http` files.
+2. Click the **Laika** icon in the Activity Bar (astronaut helmet 🐕).
+3. Expand any file to see its requests.
+4. Click the **▶** button on a request to send it *(coming soon — WebView panel)*.
 
-## Known Issues
+## Development
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+```sh
+npm install
+npm run compile   # type-check + lint + bundle
+npm run watch     # incremental rebuild
+```
 
-## Release Notes
+Press `F5` in VS Code to launch an Extension Development Host.
 
-Users appreciate release notes as you update your extension.
+## Roadmap
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- [x] Activity Bar sidebar
+- [x] TreeView — `.http` files and their requests
+- [x] HTTP parser — variables, substitution, headers, body
+- [ ] WebView panel — send requests, display status / headers / body with JSON highlighting
