@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+  <!-- Helmet shell with visor cut out as transparent window (evenodd) -->
+  <path fill-rule="evenodd" clip-rule="evenodd" d="
+    M8 1C4.686 1 2 3.686 2 7v3c0 .552.448 1 1 1h1v1.5c0 .828.672 1.5 1.5 1.5h5c.828 0 1.5-.672 1.5-1.5V11h1c.552 0 1-.448 1-1V7c0-3.314-2.686-6-6-6z
+    M4 6.5A4 3 0 1 0 12 6.5A4 3 0 1 0 4 6.5z
+  "/>
+  <!-- Dog visible through visor window -->
+  <!-- Floppy left ear -->
+  <ellipse cx="5.8" cy="4.3" rx=".95" ry="1.4" transform="rotate(22 5.8 4.3)"/>
+  <!-- Floppy right ear -->
+  <ellipse cx="10.2" cy="4.3" rx=".95" ry="1.4" transform="rotate(-22 10.2 4.3)"/>
+  <!-- Head -->
+  <circle cx="8" cy="7" r="2.1"/>
+  <!-- Snout bump -->
+  <ellipse cx="8" cy="8.4" rx=".9" ry=".55"/>
+</svg>

@@ -9,15 +9,56 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:laikaHttpFiles"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "laika",
+          "title": "Laika",
+          "icon": "media/laika.svg"
+        }
+      ]
+    },
+    "views": {
+      "laika": [
+        {
+          "id": "laikaHttpFiles",
+          "name": "HTTP Files"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "laika.helloWorld",
-        "title": "Hello World"
+        "command": "laika.refreshFiles",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "laika.sendRequest",
+        "title": "Send Request",
+        "icon": "$(play)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "laika.refreshFiles",
+          "when": "view == laikaHttpFiles",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "laika.sendRequest",
+          "when": "view == laikaHttpFiles && viewItem == request",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
