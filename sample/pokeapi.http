@@ -1,0 +1,55 @@
+@baseUrl = https://pokeapi.co/api/v2
+
+### Get a Pokémon by name
+# @name getPokemon
+GET {{baseUrl}}/pokemon/pikachu
+Accept: application/json
+
+###
+
+### Get a Pokémon by ID
+# @name getPokemonById
+GET {{baseUrl}}/pokemon/6
+Accept: application/json
+
+###
+
+### List all types
+# @name listTypes
+GET {{baseUrl}}/type
+Accept: application/json
+
+###
+
+### Get a specific type
+# @name getType
+GET {{baseUrl}}/type/fire
+Accept: application/json
+
+###
+
+### Get a move
+# @name getMove
+GET {{baseUrl}}/move/thunderbolt
+Accept: application/json
+
+###
+
+### Get an ability
+# @name getAbility
+GET {{baseUrl}}/ability/static
+Accept: application/json
+
+###
+
+### Get a generation
+# @name getGeneration
+GET {{baseUrl}}/generation/1
+Accept: application/json
+
+###
+
+### Paginated Pokémon list
+# @name listPokemon
+GET {{baseUrl}}/pokemon?limit=20&offset=0
+Accept: application/json

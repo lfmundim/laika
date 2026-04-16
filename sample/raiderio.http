@@ -1,0 +1,43 @@
+@baseUrl = https://raider.io/api/v1
+@region  = us
+@realm   = illidan
+
+### Get character profile (M+ score + raid progression)
+# @name getCharacter
+GET {{baseUrl}}/characters/profile?region={{region}}&realm={{realm}}&name=Rextroy&fields=mythic_plus_scores_by_season:current,raid_progression
+Accept: application/json
+
+###
+
+### Get guild profile + raid progression
+# @name getGuild
+GET {{baseUrl}}/guilds/profile?region={{region}}&realm={{realm}}&guild_name=Complexity-Limit&fields=raid_progression,raid_rankings
+Accept: application/json
+
+###
+
+### Get Mythic+ affixes for the current week
+# @name getCurrentAffixes
+GET {{baseUrl}}/mythic-plus/affixes?region={{region}}&locale=en
+Accept: application/json
+
+###
+
+### Get Mythic+ run details by season
+# @name getMythicPlusRuns
+GET {{baseUrl}}/mythic-plus/runs?season=season-tww-2&region={{region}}&dungeon=all&affixes=all&page=0
+Accept: application/json
+
+###
+
+### Get Mythic+ dungeon leaderboard
+# @name getMythicPlusLeaderboard
+GET {{baseUrl}}/mythic-plus/leaderboards?season=season-tww-2&region={{region}}&realm={{realm}}&dungeon=all
+Accept: application/json
+
+###
+
+### Get raid rankings for a specific raid tier
+# @name getRaidRankings
+GET {{baseUrl}}/raiding/hall-of-fame?raid=nerub-ar-palace&difficulty=mythic&region={{region}}
+Accept: application/json

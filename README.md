@@ -1,20 +1,39 @@
 # Laika
 
-A VS Code extension that adds a sidebar panel for browsing and sending `.http` file requests — a visual companion to the plain-text HTTP workflow, without leaving the editor.
+A VS Code extension for browsing and firing `.http` file requests — a visual companion to the plain-text HTTP workflow, without leaving the editor.
 
-## Features
+## Getting started
 
-### HTTP Files sidebar
-A dedicated Activity Bar tab lists every `.http` file in your workspace. Expand any file to see its individual requests. The tree refreshes automatically when files are created, deleted, or changed.
+1. Install the extension.
+2. Open any workspace that contains `.http` files.
+3. Click the **Laika** icon in the Activity Bar (the astronaut helmet).
+4. Expand a file in the sidebar to see its requests.
+5. Click **▶** next to a request to open the request panel.
+6. Click **Send Request** — the response appears below with the status code, headers, and highlighted body.
 
-### .http file format
-Laika follows the same format used by the [REST Client](https://github.com/Huachao/vscode-restclient) extension:
+## The sidebar
+
+The Laika panel lists every `.http` file found in the workspace. Files are watched automatically — add, delete, or save one and the tree updates instantly. Use the **↻** button at the top of the panel to force a refresh.
+
+## The request panel
+
+Opening a request shows the resolved URL, headers, and body (all `{{variables}}` already substituted) before you send anything. After sending:
+
+- **Status** is colour-coded: green (2xx), yellow (3xx), orange (4xx), red (5xx)
+- **Response headers** are collapsible
+- **Body** is pretty-printed with JSON syntax highlighting
+
+The panel stays open when you switch tabs. Clicking a different request updates it in place rather than opening a new tab.
+
+## .http file format
+
+Laika uses the same format as the [REST Client](https://github.com/Huachao/vscode-restclient) extension, so existing `.http` files work without changes.
 
 ```http
 @baseUrl = https://api.example.com
-@token = abc123
+@token   = abc123
 
-### Get all users
+### List users
 # @name listUsers
 GET {{baseUrl}}/users
 Authorization: Bearer {{token}}
@@ -22,6 +41,7 @@ Accept: application/json
 
 ###
 
+### Create user
 # @name createUser
 POST {{baseUrl}}/users
 Content-Type: application/json
@@ -32,41 +52,22 @@ Content-Type: application/json
 }
 ```
 
-**Supported syntax:**
-| Syntax | Description |
+| Syntax | Meaning |
 |---|---|
-| `###` | Separates requests within a file |
-| `### Label` | Optional label on the separator (used as request name) |
-| `# @name MyRequest` | Named request annotation (takes priority over separator label) |
-| `@varName = value` | Declares a file-scoped variable |
-| `{{varName}}` | Substitutes a variable in URLs, headers, and bodies |
+| `###` | Separator between requests |
+| `### Label` | Separator with a display name |
+| `# @name Foo` | Request name (overrides separator label) |
+| `@var = value` | File-scoped variable declaration |
+| `{{var}}` | Variable substitution (URL, headers, body) |
 | `Key: Value` | Request header |
-| *(blank line)* | Separates headers from the request body |
+| *(blank line)* | Marks the end of headers; everything after is the body |
 
-### Request panel
-Click the **▶** button on any request in the tree to open a side panel. The panel shows the resolved request (with variables substituted) and a **Send Request** button. After sending, the response is displayed inline: status code (colour-coded), response headers (collapsible), and body with recursive JSON syntax highlighting.
-
-## Usage
-
-1. Open a workspace containing `.http` files.
-2. Click the **Laika** icon in the Activity Bar (astronaut helmet).
-3. Expand any file to see its individual requests.
-4. Click **▶** on a request (or the play button in the tree) to open the request panel.
-5. Click **Send Request** — the response appears below with status, headers, and highlighted body.
-
-## Development
+## Contributing
 
 ```sh
 npm install
 npm run compile   # type-check + lint + bundle
-npm run watch     # incremental rebuild
+npm run watch     # rebuild on save
 ```
 
-Press `F5` in VS Code to launch an Extension Development Host.
-
-## Roadmap
-
-- [x] Activity Bar sidebar
-- [x] TreeView — `.http` files and their requests
-- [x] HTTP parser — variables, substitution, headers, body
-- [x] WebView panel — send requests, display status / headers / body with JSON highlighting
+Press `F5` in VS Code to open an Extension Development Host with Laika loaded.
