@@ -43,14 +43,16 @@ Content-Type: application/json
 | `Key: Value` | Request header |
 | *(blank line)* | Separates headers from the request body |
 
+### Request panel
+Click the **▶** button on any request in the tree to open a side panel. The panel shows the resolved request (with variables substituted) and a **Send Request** button. After sending, the response is displayed inline: status code (colour-coded), response headers (collapsible), and body with recursive JSON syntax highlighting.
+
 ## Usage
 
-> **Note:** Request sending (WebView panel) is coming in the next release. The sidebar and parser are fully functional today.
-
 1. Open a workspace containing `.http` files.
-2. Click the **Laika** icon in the Activity Bar (astronaut helmet 🐕).
-3. Expand any file to see its requests.
-4. Click the **▶** button on a request to send it *(coming soon — WebView panel)*.
+2. Click the **Laika** icon in the Activity Bar (astronaut helmet).
+3. Expand any file to see its individual requests.
+4. Click **▶** on a request (or the play button in the tree) to open the request panel.
+5. Click **Send Request** — the response appears below with status, headers, and highlighted body.
 
 ## Development
 
@@ -67,4 +69,4 @@ Press `F5` in VS Code to launch an Extension Development Host.
 - [x] Activity Bar sidebar
 - [x] TreeView — `.http` files and their requests
 - [x] HTTP parser — variables, substitution, headers, body
-- [ ] WebView panel — send requests, display status / headers / body with JSON highlighting
+- [x] WebView panel — send requests, display status / headers / body with JSON highlighting
