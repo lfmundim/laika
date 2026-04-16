@@ -2,24 +2,23 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'release/**'
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
   release:
-    name: Release
+    name: Build & Release
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: false
+          fetch-depth: 0   # nbgv needs full history to count commits
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,7 +28,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Release
+      # nbgv computes version as {major}.{minor}.{height} from version.json.
+      # We append -beta on main; release/* branches get a clean version.
+      - name: Compute version
+        id: ver
+        run: |
+          NUMERIC=$(npx nbgv get-version -v SimpleVersion)
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            FULL="${NUMERIC}-beta"
+          else
+            FULL="${NUMERIC}"
+          fi
+          echo "numeric=$NUMERIC" >> "$GITHUB_OUTPUT"
+          echo "full=$FULL"       >> "$GITHUB_OUTPUT"
+          echo "Computed version: $FULL"
+
+      # vsce requires a plain Major.Minor.Patch version — no prerelease suffix.
+      # We stamp package.json with the numeric part, then rename the .vsix afterward.
+      - name: Stamp version in package.json
+        run: npm version --no-git-tag-version ${{ steps.ver.outputs.numeric }}
+
+      - name: Package extension
+        run: npx vsce package --no-dependencies
+
+      - name: Rename .vsix to include full version
+        run: mv laika-${{ steps.ver.outputs.numeric }}.vsix laika-${{ steps.ver.outputs.full }}.vsix
+
+      - name: Create GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+          FULL: ${{ steps.ver.outputs.full }}
+        run: |
+          PRERELEASE=""
+          [[ "$FULL" == *-* ]] && PRERELEASE="--prerelease"
+          gh release create "v${FULL}" ${PRERELEASE} \
+            --title "v${FULL}" \
+            --generate-notes \
+            "laika-${FULL}.vsix#VS Code Extension"
