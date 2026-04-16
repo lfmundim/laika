@@ -1,5 +1,8 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
+import { parseHttpFile } from './httpParser';
+import { RequestPanel } from './requestPanel';
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new HttpFilesProvider(context);
@@ -16,8 +19,16 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('Select a request from the Laika panel to send it.');
         return;
       }
-      // WebView panel lives in step 4 — placeholder for now
-      vscode.window.showInformationMessage(`[Laika] Sending: ${item.label}`);
+
+      let fileVars: import('./httpParser').ParsedVariable[] = [];
+      try {
+        const text = fs.readFileSync(item.fileUri.fsPath, 'utf8');
+        fileVars = parseHttpFile(text).variables;
+      } catch {
+        // proceed without file-level variables
+      }
+
+      RequestPanel.show(item.parsed, fileVars, context);
     }),
   );
 }
