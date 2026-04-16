@@ -3,7 +3,7 @@
   "displayName": "Laika",
   "description": "A visual explorer for .http files",
   "version": "0.1.0-beta",
-  "publisher": "lfmundim",
+  "publisher": "kimdim",
   "license": "MIT",
   "repository": {
     "type": "git",
