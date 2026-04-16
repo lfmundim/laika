@@ -1,8 +1,9 @@
 # Laika
 
 [![Release](https://github.com/lfmundim/laika/actions/workflows/release.yml/badge.svg)](https://github.com/lfmundim/laika/actions/workflows/release.yml)
-[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/lfmundim.laika)](https://marketplace.visualstudio.com/items?itemName=lfmundim.laika)
-[![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/lfmundim.laika)](https://marketplace.visualstudio.com/items?itemName=lfmundim.laika)
+[![Visual Studio Marketplace Version](https://vsmarketplacebadges.dev/version/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
+[![Visual Studio Marketplace Installs](https://vsmarketplacebadges.dev/installs/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
+[![Visual Studio Marketplace Rating](https://vsmarketplacebadges.dev/rating-star/kimdim.laika.svg))](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
 
 A VS Code extension for browsing and firing `.http` file requests — a visual companion to the plain-text HTTP workflow, without leaving the editor.
 
