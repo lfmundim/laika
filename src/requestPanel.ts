@@ -11,27 +11,31 @@ export class RequestPanel {
   private readonly panel: vscode.WebviewPanel;
   private request: ParsedRequest;
   private fileVars: ParsedVariable[];
+  private filePath: string;
 
   static show(
     request: ParsedRequest,
     fileVars: ParsedVariable[],
+    filePath: string,
     context: vscode.ExtensionContext,
   ): void {
     if (RequestPanel.current) {
-      RequestPanel.current.update(request, fileVars);
+      RequestPanel.current.update(request, fileVars, filePath);
       RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
-    RequestPanel.current = new RequestPanel(request, fileVars, context);
+    RequestPanel.current = new RequestPanel(request, fileVars, filePath, context);
   }
 
   private constructor(
     request: ParsedRequest,
     fileVars: ParsedVariable[],
+    filePath: string,
     context: vscode.ExtensionContext,
   ) {
     this.request = request;
     this.fileVars = fileVars;
+    this.filePath = filePath;
 
     this.panel = vscode.window.createWebviewPanel(
       'laikaRequest',
@@ -47,22 +51,24 @@ export class RequestPanel {
     this.panel.webview.onDidReceiveMessage(async (msg) => {
       if (msg.type === 'send') {
         await this.executeRequest();
+      } else if (msg.type === 'updateVariable') {
+        await this.updateVariable(msg.name, msg.value);
       }
     }, null, context.subscriptions);
 
     this.render();
   }
 
-  private update(request: ParsedRequest, fileVars: ParsedVariable[]): void {
+  private update(request: ParsedRequest, fileVars: ParsedVariable[], filePath: string): void {
     this.request = request;
     this.fileVars = fileVars;
+    this.filePath = filePath;
     this.panel.title = `Laika: ${request.name}`;
     this.render();
   }
 
   private render(): void {
-    const resolved = resolveRequest(this.request, this.fileVars);
-    this.panel.webview.html = buildWebviewHtml(resolved);
+    this.panel.webview.html = buildWebviewHtml(this.request, this.fileVars);
   }
 
   private async executeRequest(): Promise<void> {
@@ -106,6 +112,25 @@ export class RequestPanel {
       });
     }
   }
+
+  private async updateVariable(name: string, newValue: string): Promise<void> {
+    const varEntry = this.fileVars.find(v => v.name === name);
+    if (!varEntry) { return; }
+    varEntry.value = newValue;
+
+    try {
+      const uri = vscode.Uri.file(this.filePath);
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const line = doc.lineAt(varEntry.line);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(uri, line.range, `@${name} = ${newValue}`);
+      await vscode.workspace.applyEdit(edit);
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Laika: failed to update @${name}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -120,20 +145,38 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function buildWebviewHtml(request: ParsedRequest): string {
-  const headersHtml = request.headers.length > 0
-    ? request.headers.map(h =>
+function buildWebviewHtml(request: ParsedRequest, fileVars: ParsedVariable[]): string {
+  const resolved = resolveRequest(request, fileVars);
+
+  // Variables section
+  const varsHtml = fileVars.length > 0
+    ? fileVars.map(v =>
+        '<div class="var-row">' +
+        '<span class="var-name">@' + esc(v.name) + '</span>' +
+        '<input class="var-input" data-name="' + esc(v.name) + '" type="text" value="' + esc(v.value) + '" spellcheck="false">' +
+        '</div>'
+      ).join('')
+    : '<span class="muted">No variables defined</span>';
+
+  // Headers — store raw (unresolved) value so JS can live-update
+  const headersHtml = resolved.headers.length > 0
+    ? resolved.headers.map((h, i) =>
         '<div class="kv-row">' +
         '<span class="kv-key">' + esc(h.name) + '</span>' +
         '<span class="kv-sep">:</span>' +
-        '<span class="kv-val">' + esc(h.value) + '</span>' +
+        '<span class="kv-val resolved-header" data-raw="' + esc(request.headers[i]?.value ?? h.value) + '">' + esc(h.value) + '</span>' +
         '</div>'
       ).join('')
     : '<span class="muted">None</span>';
 
   const bodyHtml = request.body
-    ? '<pre class="code">' + esc(request.body) + '</pre>'
+    ? '<pre class="code" id="resolved-body" data-raw="' + esc(request.body) + '">' + esc(resolved.body ?? '') + '</pre>'
     : '<span class="muted">No body</span>';
+
+  // Init data passed to client-side JS for live resolution
+  const varMap: Record<string, string> = {};
+  for (const v of fileVars) { varMap[v.name] = v.value; }
+  const initData = JSON.stringify({ rawUrl: request.url, vars: varMap });
 
   return (
     '<!DOCTYPE html>\n' +
@@ -147,9 +190,11 @@ function buildWebviewHtml(request: ParsedRequest): string {
     '</head>\n' +
     '<body>\n' +
     '<div class="request-section">\n' +
+    '  <div class="section-label">Variables</div>\n' +
+    '  <div class="section-body">' + varsHtml + '</div>\n' +
     '  <div class="request-line">\n' +
-    '    <span class="badge">' + esc(request.method) + '</span>\n' +
-    '    <span class="url">' + esc(request.url) + '</span>\n' +
+    '    <span class="badge">' + esc(resolved.method) + '</span>\n' +
+    '    <span class="url" id="resolved-url">' + esc(resolved.url) + '</span>\n' +
     '  </div>\n' +
     '  <div class="section-label">Headers</div>\n' +
     '  <div class="section-body">' + headersHtml + '</div>\n' +
@@ -161,7 +206,7 @@ function buildWebviewHtml(request: ParsedRequest): string {
     '<div id="response">\n' +
     '  <div id="response-content"></div>\n' +
     '</div>\n' +
-    '<script>\n' +
+    '<script>\nvar INIT_DATA = ' + initData + ';\n' +
     SCRIPT +
     '\n</script>\n' +
     '</body>\n' +
@@ -170,7 +215,7 @@ function buildWebviewHtml(request: ParsedRequest): string {
 }
 
 // ---------------------------------------------------------------------------
-// Styles — kept as a constant so the function above stays readable
+// Styles
 // ---------------------------------------------------------------------------
 
 const CSS = [
@@ -199,6 +244,18 @@ const CSS = [
   '.kv-key { color: #9cdcfe; min-width: 180px; }',
   '.kv-sep { color: var(--vscode-descriptionForeground); padding: 0 4px; }',
   '.kv-val { color: #ce9178; }',
+  '.var-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }',
+  '.var-name {',
+  '  font-family: var(--vscode-editor-font-family); font-size: 0.85em;',
+  '  color: #9cdcfe; min-width: 140px; white-space: nowrap;',
+  '}',
+  '.var-input {',
+  '  flex: 1; font-family: var(--vscode-editor-font-family); font-size: 0.85em;',
+  '  background: var(--vscode-input-background); color: var(--vscode-input-foreground);',
+  '  border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px;',
+  '  padding: 2px 6px; outline: none;',
+  '}',
+  '.var-input:focus { border-color: var(--vscode-focusBorder); }',
   '.code {',
   '  margin: 0; padding: 12px; border-radius: 4px;',
   '  background: var(--vscode-textCodeBlock-background);',
@@ -249,6 +306,43 @@ const SCRIPT = [
   'var responseDiv = document.getElementById("response");',
   'var responseContent = document.getElementById("response-content");',
   '',
+  '// ---- Live variable resolution ----',
+  'var currentVars = Object.assign({}, INIT_DATA.vars);',
+  '',
+  'function resolveVars(template) {',
+  '  return template.replace(/\\{\\{(\\w+)\\}\\}/g, function(match, name) {',
+  '    return Object.prototype.hasOwnProperty.call(currentVars, name) ? currentVars[name] : match;',
+  '  });',
+  '}',
+  '',
+  'function updateResolvedDisplay() {',
+  '  var urlEl = document.getElementById("resolved-url");',
+  '  if (urlEl) { urlEl.textContent = resolveVars(INIT_DATA.rawUrl); }',
+  '  document.querySelectorAll(".resolved-header").forEach(function(el) {',
+  '    var raw = el.getAttribute("data-raw");',
+  '    if (raw !== null) { el.textContent = resolveVars(raw); }',
+  '  });',
+  '  var bodyEl = document.getElementById("resolved-body");',
+  '  if (bodyEl) {',
+  '    var raw = bodyEl.getAttribute("data-raw");',
+  '    if (raw !== null) { bodyEl.textContent = resolveVars(raw); }',
+  '  }',
+  '}',
+  '',
+  'document.querySelectorAll(".var-input").forEach(function(input) {',
+  '  input.addEventListener("input", function() {',
+  '    currentVars[this.dataset.name] = this.value;',
+  '    updateResolvedDisplay();',
+  '  });',
+  '  input.addEventListener("change", function() {',
+  '    vscode.postMessage({ type: "updateVariable", name: this.dataset.name, value: this.value });',
+  '  });',
+  '  input.addEventListener("keydown", function(e) {',
+  '    if (e.key === "Enter") { this.blur(); }',
+  '  });',
+  '});',
+  '',
+  '// ---- Send request ----',
   'btn.addEventListener("click", function() {',
   '  btn.disabled = true;',
   '  btn.innerHTML = "<span class=\\"spinner\\"></span>&nbsp;Sending\u2026";',

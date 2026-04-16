@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
         // proceed without file-level variables
       }
 
-      RequestPanel.show(item.parsed, fileVars, context);
+      RequestPanel.show(item.parsed, fileVars, item.fileUri.fsPath, context);
     }),
   );
 }
