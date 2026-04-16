@@ -36,20 +36,35 @@ jobs:
           NUMERIC=$(npx nbgv get-version -v SimpleVersion)
           if [[ "$GITHUB_REF" == refs/heads/main ]]; then
             FULL="${NUMERIC}-beta"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             FULL="${NUMERIC}"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
           echo "numeric=$NUMERIC" >> "$GITHUB_OUTPUT"
           echo "full=$FULL"       >> "$GITHUB_OUTPUT"
           echo "Computed version: $FULL"
 
       # vsce requires a plain Major.Minor.Patch version — no prerelease suffix.
-      # We stamp package.json with the numeric part, then rename the .vsix afterward.
       - name: Stamp version in package.json
         run: npm version --no-git-tag-version ${{ steps.ver.outputs.numeric }}
 
       - name: Package extension
         run: npx vsce package --no-dependencies
+
+      # Publish to VS Code Marketplace.
+      # Requires VSCE_PAT secret — see CONTRIBUTING or repo settings.
+      # main builds are published as pre-release; release/* as stable.
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          PRE_RELEASE=""
+          [[ "${{ steps.ver.outputs.prerelease }}" == "true" ]] && PRE_RELEASE="--pre-release"
+          npx vsce publish $PRE_RELEASE \
+            --packagePath "laika-${{ steps.ver.outputs.numeric }}.vsix" \
+            --pat "$VSCE_PAT"
 
       - name: Rename .vsix to include full version
         run: mv laika-${{ steps.ver.outputs.numeric }}.vsix laika-${{ steps.ver.outputs.full }}.vsix
@@ -60,7 +75,7 @@ jobs:
           FULL: ${{ steps.ver.outputs.full }}
         run: |
           PRERELEASE=""
-          [[ "$FULL" == *-* ]] && PRERELEASE="--prerelease"
+          [[ "${{ steps.ver.outputs.prerelease }}" == "true" ]] && PRERELEASE="--prerelease"
           gh release create "v${FULL}" ${PRERELEASE} \
             --title "v${FULL}" \
             --generate-notes \
