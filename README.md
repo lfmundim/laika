@@ -1,7 +1,7 @@
 # Laika
 
 [![Release](https://github.com/lfmundim/laika/actions/workflows/release.yml/badge.svg)](https://github.com/lfmundim/laika/actions/workflows/release.yml)
-[![Visual Studio Marketplace Version](https://vsmarketplacebadges.dev/version/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
+[![Visual Studio Marketplace Version](svgdev)](https://vsmarketplacebadges.dev/version/kimdim.laika.svg)
 [![Visual Studio Marketplace Installs](https://vsmarketplacebadges.dev/installs/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
 [![Visual Studio Marketplace Rating](https://vsmarketplacebadges.dev/rating-star/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
 
