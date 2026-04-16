@@ -2,7 +2,13 @@
   "name": "laika",
   "displayName": "Laika",
   "description": "A visual explorer for .http files",
-  "version": "1.0.0",
+  "version": "0.1.0-beta",
+  "publisher": "lfmundim",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lfmundim/laika.git"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
