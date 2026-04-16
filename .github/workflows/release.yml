@@ -56,7 +56,6 @@ jobs:
       # Requires VSCE_PAT secret — see CONTRIBUTING or repo settings.
       # main builds are published as pre-release; release/* as stable.
       - name: Publish to VS Code Marketplace
-        if: ${{ env.VSCE_PAT != '' }}
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
