@@ -50,7 +50,10 @@ jobs:
         run: npm version --no-git-tag-version ${{ steps.ver.outputs.numeric }}
 
       - name: Package extension
-        run: npx vsce package --no-dependencies
+        run: |
+          PRE_RELEASE=""
+          [[ "${{ steps.ver.outputs.prerelease }}" == "true" ]] && PRE_RELEASE="--pre-release"
+          npx vsce package --no-dependencies $PRE_RELEASE
 
       # Publish to VS Code Marketplace.
       # Requires VSCE_PAT secret — see CONTRIBUTING or repo settings.
