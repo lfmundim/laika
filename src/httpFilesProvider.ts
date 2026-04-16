@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { parseHttpFile, ParsedRequest } from './httpParser';
 
 // ---------------------------------------------------------------------------
 // Tree item types
@@ -20,15 +21,14 @@ export class HttpFileItem extends vscode.TreeItem {
 
 export class RequestItem extends vscode.TreeItem {
   constructor(
-    public readonly label: string,
     public readonly fileUri: vscode.Uri,
-    public readonly requestIndex: number,
-    public readonly rawBlock: string,
+    public readonly parsed: ParsedRequest,
   ) {
-    super(label, vscode.TreeItemCollapsibleState.None);
+    super(parsed.name, vscode.TreeItemCollapsibleState.None);
     this.contextValue = 'request';
+    this.description = parsed.method;
     this.iconPath = new vscode.ThemeIcon('arrow-right');
-    this.tooltip = rawBlock.slice(0, 200);
+    this.tooltip = parsed.raw.slice(0, 300);
     this.command = {
       command: 'laika.sendRequest',
       title: 'Send Request',
@@ -47,14 +47,12 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
   private _onDidChangeTreeData = new vscode.EventEmitter<HttpTreeItem | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private fileWatcher: vscode.FileSystemWatcher | undefined;
-
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.http');
-    this.fileWatcher.onDidCreate(() => this.refresh());
-    this.fileWatcher.onDidDelete(() => this.refresh());
-    this.fileWatcher.onDidChange(() => this.refresh());
-    context.subscriptions.push(this.fileWatcher);
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.http');
+    watcher.onDidCreate(() => this.refresh());
+    watcher.onDidDelete(() => this.refresh());
+    watcher.onDidChange(() => this.refresh());
+    context.subscriptions.push(watcher);
   }
 
   refresh(): void {
@@ -93,59 +91,7 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
       return [];
     }
 
-    const blocks = splitIntoBlocks(text);
-    return blocks
-      .map((block, index) => {
-        const label = extractRequestLabel(block, index);
-        return new RequestItem(label, fileUri, index, block);
-      })
-      .filter(item => item.label.length > 0);
+    const { requests } = parseHttpFile(text);
+    return requests.map(r => new RequestItem(fileUri, r));
   }
-}
-
-// ---------------------------------------------------------------------------
-// .http parsing helpers (minimal — enough for the tree)
-// ---------------------------------------------------------------------------
-
-/**
- * Split file content into request blocks separated by `###` dividers.
- * Strips leading/trailing whitespace from each block.
- */
-function splitIntoBlocks(text: string): string[] {
-  return text
-    .split(/^###[^\n]*$/m)
-    .map(b => b.trim())
-    .filter(b => b.length > 0);
-}
-
-/**
- * Derive a display label for a request block.
- * Priority:
- *   1. `# @name <label>` annotation
- *   2. First non-comment, non-variable line that looks like `METHOD URL`
- *   3. Fallback to `Request N`
- */
-function extractRequestLabel(block: string, index: number): string {
-  const lines = block.split('\n');
-
-  // 1. Named annotation: # @name MyRequest  or  // @name MyRequest
-  for (const line of lines) {
-    const nameMatch = line.match(/^(?:#|\/\/)\s*@name\s+(.+)/);
-    if (nameMatch) {
-      return nameMatch[1].trim();
-    }
-  }
-
-  // 2. First HTTP method line
-  const HTTP_METHODS = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT|TRACE)\s+\S+/i;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (HTTP_METHODS.test(trimmed)) {
-      // Truncate if long
-      return trimmed.length > 60 ? trimmed.slice(0, 57) + '…' : trimmed;
-    }
-  }
-
-  // 3. Fallback
-  return `Request ${index + 1}`;
 }
