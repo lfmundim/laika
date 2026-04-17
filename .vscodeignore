@@ -1,0 +1,12 @@
+node_modules
+.vscode-test
+.claude
+.github
+src/test
+out/test
+**/*.test.ts
+**/*.test.js
+**/*.test.map
+tsconfig.json
+eslint.config.mjs
+.vscode-test.mjs
