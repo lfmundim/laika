@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as https from 'https';
+import * as http from 'http';
+import { URL } from 'url';
 import { ParsedRequest, ParsedVariable, resolveRequest } from './httpParser';
 import { EnvVariable } from './envLoader';
 import { HistoryStore } from './historyStore';
@@ -129,27 +132,18 @@ export class RequestPanel {
     }
 
     try {
-      const init: RequestInit = { method: resolved.method, headers, redirect: 'follow' };
-      if (resolved.body && resolved.method !== 'GET' && resolved.method !== 'HEAD') {
-        init.body = resolved.body;
-      }
-
       const t0 = Date.now();
-      const res = await fetch(resolved.url, init);
+      const { status, statusText, responseHeaders, body } = await this.makeRequest(resolved.url, resolved.method, headers, resolved.body);
       const duration = Date.now() - t0;
 
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((v, k) => { resHeaders[k] = v; });
-
-      const contentType = res.headers.get('content-type') ?? '';
+      const contentType = responseHeaders['content-type'] ?? '';
       const isJson = contentType.includes('application/json');
-      const body = await res.text();
 
       this.panel.webview.postMessage({
         type: 'response',
-        status: res.status,
-        statusText: res.statusText,
-        headers: resHeaders,
+        status,
+        statusText,
+        headers: responseHeaders,
         body,
         isJson,
         duration,
@@ -157,7 +151,7 @@ export class RequestPanel {
 
       this.historyStore?.add({
         request: { method: resolved.method, url: resolved.url, headers, body: resolved.body },
-        response: { status: res.status, statusText: res.statusText, headers: resHeaders, body, duration },
+        response: { status, statusText, headers: responseHeaders, body, duration },
         sourceFile: this.filePath,
         requestName: this.request.name,
       });
@@ -175,6 +169,52 @@ export class RequestPanel {
       });
       this.historyRefreshCallback?.();
     }
+  }
+
+  private makeRequest(
+    urlString: string,
+    method: string,
+    headers: Record<string, string>,
+    body?: string,
+  ): Promise<{ status: number; statusText: string; responseHeaders: Record<string, string>; body: string }> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(urlString);
+      const isHttps = url.protocol === 'https:';
+      const client = isHttps ? https : http;
+
+      const options = {
+        method,
+        headers,
+        rejectUnauthorized: false, // Allow self-signed certs for localhost/development
+      };
+
+      const req = client.request(url, options, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          const responseHeaders: Record<string, string> = {};
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (typeof value === 'string') {
+              responseHeaders[key] = value;
+            } else if (Array.isArray(value)) {
+              responseHeaders[key] = value.join(', ');
+            }
+          }
+          resolve({
+            status: res.statusCode ?? 0,
+            statusText: res.statusMessage ?? '',
+            responseHeaders,
+            body: data,
+          });
+        });
+      });
+
+      req.on('error', reject);
+      if (body) {
+        req.write(body);
+      }
+      req.end();
+    });
   }
 
   private async updateVariable(name: string, newValue: string): Promise<void> {
