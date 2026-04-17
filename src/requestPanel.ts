@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ParsedRequest, ParsedVariable, resolveRequest } from './httpParser';
 import { EnvVariable } from './envLoader';
+import { HistoryStore } from './historyStore';
 
 // ---------------------------------------------------------------------------
 // Panel manager
@@ -15,6 +16,8 @@ export class RequestPanel {
   private envVars: EnvVariable[];
   private envName: string;
   private filePath: string;
+  private historyStore: HistoryStore | undefined;
+  private historyRefreshCallback: (() => void) | undefined;
 
   static show(
     request: ParsedRequest,
@@ -23,13 +26,19 @@ export class RequestPanel {
     context: vscode.ExtensionContext,
     envVars: EnvVariable[] = [],
     envName: string = '',
+    historyStore?: HistoryStore,
+    historyRefreshCallback?: () => void,
   ): void {
     if (RequestPanel.current) {
       RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
+      RequestPanel.current.historyStore = historyStore;
+      RequestPanel.current.historyRefreshCallback = historyRefreshCallback;
       RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
-    RequestPanel.current = new RequestPanel(request, fileVars, filePath, context, envVars, envName);
+    RequestPanel.current = new RequestPanel(
+      request, fileVars, filePath, context, envVars, envName, historyStore, historyRefreshCallback,
+    );
   }
 
   /** Re-render the current panel with updated env data (called after environment switch). */
@@ -52,12 +61,16 @@ export class RequestPanel {
     context: vscode.ExtensionContext,
     envVars: EnvVariable[],
     envName: string,
+    historyStore?: HistoryStore,
+    historyRefreshCallback?: () => void,
   ) {
     this.request = request;
     this.fileVars = fileVars;
     this.filePath = filePath;
     this.envVars = envVars;
     this.envName = envName;
+    this.historyStore = historyStore;
+    this.historyRefreshCallback = historyRefreshCallback;
 
     this.panel = vscode.window.createWebviewPanel(
       'laikaRequest',
@@ -135,11 +148,25 @@ export class RequestPanel {
         isJson,
         duration,
       });
-    } catch (err) {
-      this.panel.webview.postMessage({
-        type: 'error',
-        message: err instanceof Error ? err.message : String(err),
+
+      this.historyStore?.add({
+        request: { method: resolved.method, url: resolved.url, headers, body: resolved.body },
+        response: { status: res.status, statusText: res.statusText, headers: resHeaders, body, duration },
+        sourceFile: this.filePath,
+        requestName: this.request.name,
       });
+      this.historyRefreshCallback?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.panel.webview.postMessage({ type: 'error', message });
+
+      this.historyStore?.add({
+        request: { method: resolved.method, url: resolved.url, headers, body: resolved.body },
+        error: message,
+        sourceFile: this.filePath,
+        requestName: this.request.name,
+      });
+      this.historyRefreshCallback?.();
     }
   }
 
@@ -175,6 +202,23 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function renderMarkdown(text: string): string {
+  return text
+    .split('\n')
+    .map(line => {
+      const e = esc(line);
+      const formatted = e
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+      if (/^[-*]\s+/.test(line)) {
+        return '<li>' + formatted.replace(/^[-*]\s+/, '') + '</li>';
+      }
+      return '<p>' + formatted + '</p>';
+    })
+    .join('');
+}
+
 function buildWebviewHtml(
   request: ParsedRequest,
   fileVars: ParsedVariable[],
@@ -182,6 +226,11 @@ function buildWebviewHtml(
   envName: string,
 ): string {
   const resolved = resolveRequest(request, fileVars, envVars);
+
+  // Description block (markdown)
+  const descriptionHtml = request.description
+    ? '<div class="description">' + renderMarkdown(request.description) + '</div>\n'
+    : '';
 
   // Environment badge
   const envLabel = envName
@@ -233,6 +282,7 @@ function buildWebviewHtml(
     '<body>\n' +
     '<div class="request-section">\n' +
     '  <div class="env-banner">' + envLabel + '</div>\n' +
+    (descriptionHtml ? '  ' + descriptionHtml : '') +
     '  <div class="section-label">Variables</div>\n' +
     '  <div class="section-body">' + varsHtml + '</div>\n' +
     '  <div class="request-line">\n' +
@@ -342,6 +392,19 @@ const CSS = [
   '}',
   '.json-key { color: #9cdcfe; } .json-str { color: #ce9178; }',
   '.json-num { color: #b5cea8; } .json-bool, .json-null { color: #569cd6; }',
+  '.description {',
+  '  margin-bottom: 16px; padding: 10px 14px; line-height: 1.6;',
+  '  border-left: 3px solid var(--vscode-textLink-foreground);',
+  '  background: var(--vscode-textBlockQuote-background);',
+  '  color: var(--vscode-foreground); font-size: 0.9em;',
+  '}',
+  '.description p { margin: 0 0 4px; }',
+  '.description li { margin: 0 0 2px; list-style: disc; margin-left: 16px; }',
+  '.inline-code {',
+  '  font-family: var(--vscode-editor-font-family);',
+  '  background: var(--vscode-textCodeBlock-background);',
+  '  padding: 1px 4px; border-radius: 2px; font-size: 0.9em;',
+  '}',
 ].join('\n');
 
 // ---------------------------------------------------------------------------

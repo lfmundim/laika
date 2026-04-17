@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.x-beta] — 2026-04-17
+
+### Added
+- **Request History** — every sent request is logged to a persistent History panel in the Laika sidebar:
+  - Entries appear newest-first with the HTTP method, resolved URL, response status, and timestamp
+  - Icons indicate outcome: ✓ success, ⚠ client/server error (4xx/5xx), ✗ network failure
+  - Click any entry to open a read-only detail panel showing the full request (headers, body) and response (status, headers, highlighted body, duration)
+  - Up to 100 entries are kept; oldest are automatically trimmed
+  - History persists across sessions (stored in VS Code global storage, not the workspace)
+  - **Clear History** button (trash icon) in the History panel toolbar
+- **Inline request descriptions** — add markdown-formatted comments directly above a request line in your `.http` file:
+  - Any `#` or `//` comment lines before the HTTP method line are parsed as the request description
+  - Descriptions are displayed as a styled block in the request panel, above the variables section
+  - Supports `**bold**`, `*italic*`, `` `inline code` ``, and `- bullet list` formatting
+
+---
+
 ## [0.2.x-beta] — 2026-04-17
 
 ### Added

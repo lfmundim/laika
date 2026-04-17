@@ -37,6 +37,8 @@ export interface ParsedRequest {
   httpVersion: string;
   headers: ParsedHeader[];
   body: string | undefined;
+  /** Optional markdown description extracted from comment lines before the request line */
+  description: string | undefined;
   /** 0-based index of this request within the file */
   index: number;
   /** Raw text of the block (after variable substitution is NOT applied here; use resolveRequest) */
@@ -258,6 +260,19 @@ function parseBlock(
     block.separatorLabel ||
     deriveNameFromRequestLine(method, url);
 
+  // Collect description from non-annotation comment lines before the request line
+  const descLines: string[] = [];
+  for (let i = 0; i < requestLineIndex; i++) {
+    const line = lines[i].trim();
+    if (!line) { continue; }
+    if (line.match(/^(?:#|\/\/)\s*@\w+/)) { continue; } // skip annotations like @name
+    if (line.startsWith('@')) { continue; }               // skip @var declarations
+    if (!line.startsWith('#') && !line.startsWith('//')) { continue; }
+    const stripped = line.replace(/^(?:\/\/\s?|#\s?)/, '');
+    if (stripped) { descLines.push(stripped); }
+  }
+  const description = descLines.length > 0 ? descLines.join('\n') : undefined;
+
   return {
     name,
     method,
@@ -265,6 +280,7 @@ function parseBlock(
     httpVersion,
     headers,
     body,
+    description,
     index,
     raw: block.content,
   };
