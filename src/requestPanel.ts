@@ -129,7 +129,7 @@ export class RequestPanel {
     }
 
     try {
-      const init: RequestInit = { method: resolved.method, headers };
+      const init: RequestInit = { method: resolved.method, headers, redirect: 'follow' };
       if (resolved.body && resolved.method !== 'GET' && resolved.method !== 'HEAD') {
         init.body = resolved.body;
       }

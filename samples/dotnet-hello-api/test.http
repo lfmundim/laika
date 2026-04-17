@@ -1,0 +1,11 @@
+@baseUrl = http://localhost:5000
+
+### Health check
+# Tests the API health endpoint to verify the server is running.
+GET {{baseUrl}}/api/health
+
+###
+
+### Hello endpoint
+# Returns a greeting message from the local API.
+GET {{baseUrl}}/api/hello
