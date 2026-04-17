@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:5000
+@baseUrl = https://localhost:5001
 
 ### Health check
 # Tests the API health endpoint to verify the server is running.

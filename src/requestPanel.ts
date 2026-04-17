@@ -163,7 +163,8 @@ export class RequestPanel {
       });
       this.historyRefreshCallback?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const message = `Failed to fetch ${resolved.url}\n\nError: ${errorMsg}\n\n(Check certificate validity for HTTPS, firewall, or if the server is running)`;
       this.panel.webview.postMessage({ type: 'error', message });
 
       this.historyStore?.add({
