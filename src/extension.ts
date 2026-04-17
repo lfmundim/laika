@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
-import { parseHttpFile } from './httpParser';
+import { parseHttpFile, extractReferencedVarNames } from './httpParser';
 import { RequestPanel } from './requestPanel';
 import { discoverEnvironments, findEnvFileForHttp, loadEnvironment } from './envLoader';
 import { HistoryStore } from './historyStore';
@@ -93,6 +93,16 @@ export function activate(context: vscode.ExtensionContext) {
         const envFilePath = findEnvFileForHttp(item.fileUri.fsPath);
         if (envFilePath) {
           envVars = loadEnvironment(envFilePath, activeEnvName);
+        }
+      }
+
+      // Add editable placeholders for any {{varName}} tokens not backed by a
+      // file-level @var declaration so they're always visible and resolvable
+      // even without an environment file. line:-1 marks them as synthetic.
+      const fileVarNames = new Set(fileVars.map(v => v.name));
+      for (const name of extractReferencedVarNames(item.parsed)) {
+        if (!fileVarNames.has(name)) {
+          fileVars.push({ name, value: envVars.find(v => v.name === name)?.value ?? '', line: -1 });
         }
       }
 

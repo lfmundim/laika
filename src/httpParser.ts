@@ -163,6 +163,21 @@ function extractVariables(text: string): ParsedVariable[] {
   return vars;
 }
 
+/**
+ * Return the distinct set of variable names referenced as `{{varName}}` tokens
+ * in a request's URL, header values, and body. Used to synthesize editable
+ * placeholder entries when no file-level declaration exists.
+ */
+export function extractReferencedVarNames(request: ParsedRequest): string[] {
+  const pattern = /\{\{(\w+)\}\}/g;
+  const names = new Set<string>();
+  const addMatches = (text: string) => { for (const m of text.matchAll(pattern)) { names.add(m[1]); } };
+  addMatches(request.url);
+  for (const h of request.headers) { addMatches(h.value); }
+  if (request.body) { addMatches(request.body); }
+  return [...names];
+}
+
 /** Replace all `{{varName}}` tokens using the provided map. Unknown vars are left as-is. */
 function applySubstitution(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (match, name) =>
