@@ -1,6 +1,8 @@
+@pokemon = pikachu
+
 ### Get a Pokémon by name
 # @name getPokemon
-GET {{baseUrl}}/pokemon/pikachu
+GET {{baseUrl}}/pokemon/{{pokemon}}
 Accept: application/json
 
 ###

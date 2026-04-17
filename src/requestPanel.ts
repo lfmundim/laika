@@ -46,6 +46,12 @@ export class RequestPanel {
     if (!RequestPanel.current) { return; }
     RequestPanel.current.envVars = envVars;
     RequestPanel.current.envName = envName;
+    // Sync synthetic placeholder values (line < 0) from the new environment.
+    for (const v of RequestPanel.current.fileVars) {
+      if (v.line < 0) {
+        v.value = envVars.find(e => e.name === v.name)?.value ?? '';
+      }
+    }
     RequestPanel.current.render();
   }
 
@@ -174,6 +180,9 @@ export class RequestPanel {
     const varEntry = this.fileVars.find(v => v.name === name);
     if (!varEntry) { return; }
     varEntry.value = newValue;
+
+    // Synthetic placeholders (line < 0) have no backing declaration in the file.
+    if (varEntry.line < 0) { return; }
 
     try {
       const uri = vscode.Uri.file(this.filePath);
