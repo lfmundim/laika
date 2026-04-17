@@ -1,0 +1,129 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.vscode/**'
+      - '.claude/**'
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Type Check, Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+      - name: Comment PR with coverage summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Try to read coverage summary from c8 coverage JSON report
+            const coveragePath = path.join(process.env.GITHUB_WORKSPACE, 'coverage', 'coverage-final.json');
+            if (!fs.existsSync(coveragePath)) {
+              console.log('Coverage report not found, skipping coverage comment');
+              return;
+            }
+
+            const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8'));
+
+            // Calculate totals from coverage data
+            let statements = 0, branches = 0, functions = 0, lines = 0;
+            let totalStatements = 0, totalBranches = 0, totalFunctions = 0, totalLines = 0;
+
+            Object.values(coverage).forEach(file => {
+              if (file.statements) {
+                Object.values(file.statements).forEach(s => {
+                  totalStatements++;
+                  if (s.count > 0) statements++;
+                });
+              }
+              if (file.branches) {
+                Object.values(file.branches).forEach(b => {
+                  totalBranches += b.length || 0;
+                  if (Array.isArray(b)) {
+                    b.forEach(t => { if (t.count > 0) branches++; });
+                  }
+                });
+              }
+              if (file.functions) {
+                Object.values(file.functions).forEach(f => {
+                  totalFunctions++;
+                  if (f.count > 0) functions++;
+                });
+              }
+              if (file.lines) {
+                Object.values(file.lines).forEach(l => {
+                  totalLines++;
+                  if (l.count > 0) lines++;
+                });
+              }
+            });
+
+            const pct = (covered, total) => total > 0 ? Math.round((covered / total) * 100) : 0;
+            const badge = (p) => p >= 80 ? '🟢' : p >= 60 ? '🟡' : '🔴';
+
+            const stmtPct = pct(statements, totalStatements);
+            const branchPct = pct(branches, totalBranches);
+            const funcPct = pct(functions, totalFunctions);
+            const linePct = pct(lines, totalLines);
+
+            const comment = [
+              '## 📊 Code Coverage Report',
+              '',
+              '| Metric | Coverage | Status |',
+              '|--------|----------|--------|',
+              `| Statements | ${stmtPct}% | ${badge(stmtPct)} |`,
+              `| Branches | ${branchPct}% | ${badge(branchPct)} |`,
+              `| Functions | ${funcPct}% | ${badge(funcPct)} |`,
+              `| Lines | ${linePct}% | ${badge(linePct)} |`,
+              '',
+              `**Full coverage report:** See [Build Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            }).catch(err => console.log('Failed to comment on PR:', err.message));
