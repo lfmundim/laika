@@ -1,3 +1,6 @@
+// Code coverage excluded: this file creates vscode.WebviewPanel instances and uses
+// vscode.window APIs that require the VS Code extension host at runtime.
+// Unit testing requires @vscode/test-electron (integration tests), deferred.
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as http from 'http';

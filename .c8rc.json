@@ -7,14 +7,19 @@
     "out/test/**",
     "out/extension.js",
     "out/**/*.d.ts",
-    "node_modules/**"
+    "node_modules/**",
+    "out/historyProvider.js",
+    "out/httpFilesProvider.js",
+    "out/historyPanel.js",
+    "out/requestPanel.js"
   ],
   "reporter": [
     "text",
     "text-summary",
     "html",
     "lcov",
-    "json"
+    "json",
+    "json-summary"
   ],
   "temp-dir": "./.c8_temp",
   "report-dir": "./coverage",
