@@ -11,6 +11,8 @@
  *   - Body: everything after the first blank line following the headers
  */
 
+import type { EnvVariable } from './envLoader';
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -65,16 +67,28 @@ export function parseHttpFile(text: string): ParsedFile {
 }
 
 /**
- * Return a copy of `request` with all `{{varName}}` tokens replaced using the
- * provided variable map (and any inline `@var` declarations in the same block).
+ * Return a copy of `request` with all `{{varName}}` tokens replaced.
+ *
+ * Variable priority (highest wins):
+ *   1. Inline `@var` declarations within the request block
+ *   2. File-level `@var` declarations
+ *   3. Environment variables from the active `.env` file
  */
 export function resolveRequest(
   request: ParsedRequest,
   fileVariables: ParsedVariable[],
+  envVariables?: EnvVariable[],
 ): ParsedRequest {
-  const vars = buildVarMap(fileVariables);
+  // Lowest priority: env file variables
+  const vars: Record<string, string> = {};
+  if (envVariables) {
+    for (const v of envVariables) { vars[v.name] = v.value; }
+  }
 
-  // Inline @var declarations inside this specific block override file-level ones
+  // File-level variables override env variables
+  for (const v of fileVariables) { vars[v.name] = v.value; }
+
+  // Inline @var declarations within the block take highest priority
   const inlineVars = extractVariables(request.raw);
   for (const v of inlineVars) {
     vars[v.name] = v.value;
@@ -145,14 +159,6 @@ function extractVariables(text: string): ParsedVariable[] {
     }
   }
   return vars;
-}
-
-function buildVarMap(variables: ParsedVariable[]): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const v of variables) {
-    map[v.name] = v.value;
-  }
-  return map;
 }
 
 /** Replace all `{{varName}}` tokens using the provided map. Unknown vars are left as-is. */
