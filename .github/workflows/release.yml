@@ -34,6 +34,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
       # nbgv computes version as {major}.{minor}.{height} from version.json.
       # We append -beta on main; release/* branches get a clean version.
       - name: Compute version

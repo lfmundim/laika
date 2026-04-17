@@ -8,3 +8,4 @@ coverage/
 *.vsix
 CLAUDE.md
 .claude/instructions/
+.vscode-test/
