@@ -1,8 +1,5 @@
 const esbuild = require("esbuild");
 
-// Suppress known deprecation warnings
-process.env.NODE_NO_WARNINGS = '1';
-
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
