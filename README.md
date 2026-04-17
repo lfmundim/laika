@@ -67,6 +67,69 @@ Content-Type: application/json
 | `Key: Value` | Request header |
 | *(blank line)* | Marks the end of headers; everything after is the body |
 
+## Environments
+
+Laika uses the same environment file format as Visual Studio 2022, so any existing `http-client.env.json` file works without changes.
+
+### Environment file
+
+Create a file named **`http-client.env.json`** in your workspace root (or anywhere in the directory tree above your `.http` files — Laika searches upward, just like Visual Studio). The file is a JSON object whose keys are environment names:
+
+```json
+{
+  "$shared": {
+    "API_VERSION": "v1"
+  },
+  "dev": {
+    "BASE_URL": "http://localhost:3000",
+    "API_KEY": "dev-key"
+  },
+  "staging": {
+    "BASE_URL": "https://api.staging.example.com",
+    "API_KEY": "stg-key"
+  }
+}
+```
+
+`$shared` is a special key whose variables act as defaults for every environment. A specific environment can override any `$shared` variable by re-defining it.
+
+### User-specific overrides
+
+Place a **`http-client.env.json.user`** file alongside the main file for values you don't want to commit (personal tokens, local ports, etc.). Variables in `.user` override the shared file for the same environment. Add `*.user` to `.gitignore`.
+
+```json
+{
+  "dev": {
+    "API_KEY": "my-local-key"
+  }
+}
+```
+
+### Selecting an environment
+
+Click the environment button in the Laika toolbar (or run **Laika: Select Environment** from the Command Palette) and pick an environment. Choose **None** to clear it. The selection persists across sessions.
+
+### Variable priority
+
+When a request is sent, variables are resolved in this order (highest wins):
+
+1. **Inline** `@var` declarations inside the request block
+2. **File-level** `@var` declarations at the top of the `.http` file
+3. **`.user` file** — active environment block
+4. **`http-client.env.json`** — active environment block
+5. **`.user` file** — `$shared` block
+6. **`http-client.env.json`** — `$shared` block
+
+### Example
+
+```http
+### Health check
+GET {{BASE_URL}}/{{API_VERSION}}/health
+Authorization: Bearer {{API_KEY}}
+```
+
+Switch to **dev** → sends to `http://localhost:3000/v1/health`. Switch to **staging** → sends to `https://api.staging.example.com/v1/health`. No file edits needed.
+
 ## Contributing
 
 ```sh

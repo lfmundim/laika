@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ParsedRequest, ParsedVariable, resolveRequest } from './httpParser';
+import { EnvVariable } from './envLoader';
 
 // ---------------------------------------------------------------------------
 // Panel manager
@@ -11,6 +12,8 @@ export class RequestPanel {
   private readonly panel: vscode.WebviewPanel;
   private request: ParsedRequest;
   private fileVars: ParsedVariable[];
+  private envVars: EnvVariable[];
+  private envName: string;
   private filePath: string;
 
   static show(
@@ -18,13 +21,28 @@ export class RequestPanel {
     fileVars: ParsedVariable[],
     filePath: string,
     context: vscode.ExtensionContext,
+    envVars: EnvVariable[] = [],
+    envName: string = '',
   ): void {
     if (RequestPanel.current) {
-      RequestPanel.current.update(request, fileVars, filePath);
+      RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
       RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
-    RequestPanel.current = new RequestPanel(request, fileVars, filePath, context);
+    RequestPanel.current = new RequestPanel(request, fileVars, filePath, context, envVars, envName);
+  }
+
+  /** Re-render the current panel with updated env data (called after environment switch). */
+  static refresh(envVars: EnvVariable[], envName: string): void {
+    if (!RequestPanel.current) { return; }
+    RequestPanel.current.envVars = envVars;
+    RequestPanel.current.envName = envName;
+    RequestPanel.current.render();
+  }
+
+  /** The file path of the .http file displayed in the current panel, if any. */
+  static get currentFilePath(): string | undefined {
+    return RequestPanel.current?.filePath;
   }
 
   private constructor(
@@ -32,10 +50,14 @@ export class RequestPanel {
     fileVars: ParsedVariable[],
     filePath: string,
     context: vscode.ExtensionContext,
+    envVars: EnvVariable[],
+    envName: string,
   ) {
     this.request = request;
     this.fileVars = fileVars;
     this.filePath = filePath;
+    this.envVars = envVars;
+    this.envName = envName;
 
     this.panel = vscode.window.createWebviewPanel(
       'laikaRequest',
@@ -59,20 +81,28 @@ export class RequestPanel {
     this.render();
   }
 
-  private update(request: ParsedRequest, fileVars: ParsedVariable[], filePath: string): void {
+  private update(
+    request: ParsedRequest,
+    fileVars: ParsedVariable[],
+    filePath: string,
+    envVars: EnvVariable[],
+    envName: string,
+  ): void {
     this.request = request;
     this.fileVars = fileVars;
     this.filePath = filePath;
+    this.envVars = envVars;
+    this.envName = envName;
     this.panel.title = `Laika: ${request.name}`;
     this.render();
   }
 
   private render(): void {
-    this.panel.webview.html = buildWebviewHtml(this.request, this.fileVars);
+    this.panel.webview.html = buildWebviewHtml(this.request, this.fileVars, this.envVars, this.envName);
   }
 
   private async executeRequest(): Promise<void> {
-    const resolved = resolveRequest(this.request, this.fileVars);
+    const resolved = resolveRequest(this.request, this.fileVars, this.envVars);
 
     const headers: Record<string, string> = {};
     for (const h of resolved.headers) {
@@ -145,8 +175,18 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function buildWebviewHtml(request: ParsedRequest, fileVars: ParsedVariable[]): string {
-  const resolved = resolveRequest(request, fileVars);
+function buildWebviewHtml(
+  request: ParsedRequest,
+  fileVars: ParsedVariable[],
+  envVars: EnvVariable[],
+  envName: string,
+): string {
+  const resolved = resolveRequest(request, fileVars, envVars);
+
+  // Environment badge
+  const envLabel = envName
+    ? `Environment: <strong>${esc(envName)}</strong>`
+    : 'Environment: <span class="muted">None</span>';
 
   // Variables section
   const varsHtml = fileVars.length > 0
@@ -174,7 +214,9 @@ function buildWebviewHtml(request: ParsedRequest, fileVars: ParsedVariable[]): s
     : '<span class="muted">No body</span>';
 
   // Init data passed to client-side JS for live resolution
+  // Env vars are base layer; file vars override them for the live preview
   const varMap: Record<string, string> = {};
+  for (const v of envVars) { varMap[v.name] = v.value; }
   for (const v of fileVars) { varMap[v.name] = v.value; }
   const initData = JSON.stringify({ rawUrl: request.url, vars: varMap });
 
@@ -190,6 +232,7 @@ function buildWebviewHtml(request: ParsedRequest, fileVars: ParsedVariable[]): s
     '</head>\n' +
     '<body>\n' +
     '<div class="request-section">\n' +
+    '  <div class="env-banner">' + envLabel + '</div>\n' +
     '  <div class="section-label">Variables</div>\n' +
     '  <div class="section-body">' + varsHtml + '</div>\n' +
     '  <div class="request-line">\n' +
@@ -228,6 +271,11 @@ const CSS = [
   '  padding: 20px 24px; margin: 0; line-height: 1.5;',
   '}',
   '.request-section { margin-bottom: 4px; }',
+  '.env-banner {',
+  '  font-size: 0.8em; margin-bottom: 14px;',
+  '  color: var(--vscode-descriptionForeground);',
+  '}',
+  '.env-banner strong { color: var(--vscode-foreground); }',
   '.request-line { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }',
   '.badge {',
   '  font-size: 0.78em; font-weight: 700; padding: 2px 9px; border-radius: 3px;',

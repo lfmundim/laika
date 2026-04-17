@@ -1,5 +1,3 @@
-@baseUrl = https://pokeapi.co/api/v2
-
 ### Get a Pokémon by name
 # @name getPokemon
 GET {{baseUrl}}/pokemon/pikachu

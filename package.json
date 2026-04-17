@@ -15,10 +15,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onView:laikaHttpFiles"
-  ],
-  "main": "./dist/extension.js",
+"main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -47,12 +44,22 @@
         "command": "laika.sendRequest",
         "title": "Send Request",
         "icon": "$(play)"
+      },
+      {
+        "command": "laika.selectEnvironment",
+        "title": "Select Environment",
+        "icon": "$(server-environment)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "laika.refreshFiles",
+          "when": "view == laikaHttpFiles",
+          "group": "navigation"
+        },
+        {
+          "command": "laika.selectEnvironment",
           "when": "view == laikaHttpFiles",
           "group": "navigation"
         }

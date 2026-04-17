@@ -6,7 +6,10 @@ on:
       - main
       - 'release/**'
     paths-ignore:
-      - 'README.md'
+      - '**.md'
+      - '.gitignore'
+      - '.vscode/**'
+      - '.claude/**'
 
 permissions:
   contents: write
