@@ -1,6 +1,10 @@
 node_modules/
 dist/
 out/
+coverage/
+.c8_temp/
+.vscode-test/
+.nyc_output/
 *.vsix
 CLAUDE.md
 .claude/instructions/
