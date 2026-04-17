@@ -1,3 +1,6 @@
+// Code coverage excluded: this file depends on vscode.TreeItem, vscode.EventEmitter,
+// and vscode.TreeDataProvider, which require the VS Code extension host at runtime.
+// Unit testing these classes needs @vscode/test-electron (integration tests), deferred.
 import * as vscode from 'vscode';
 import { HistoryEntry, HistoryStore } from './historyStore';
 

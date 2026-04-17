@@ -1,0 +1,30 @@
+{
+  "all": true,
+  "include": [
+    "out/**/*.js"
+  ],
+  "exclude": [
+    "out/test/**",
+    "out/extension.js",
+    "out/**/*.d.ts",
+    "node_modules/**",
+    "out/historyProvider.js",
+    "out/httpFilesProvider.js",
+    "out/historyPanel.js",
+    "out/requestPanel.js"
+  ],
+  "reporter": [
+    "text",
+    "text-summary",
+    "html",
+    "lcov",
+    "json",
+    "json-summary"
+  ],
+  "temp-dir": "./.c8_temp",
+  "report-dir": "./coverage",
+  "branches": 70,
+  "lines": 70,
+  "functions": 70,
+  "statements": 70
+}

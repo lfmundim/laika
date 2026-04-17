@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: read
+  checks: write
+  pull-requests: write
 
 jobs:
   validate:
@@ -37,5 +39,53 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run tests
-        run: npm run test
+      - name: Compile tests
+        run: npm run compile-tests
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage to artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+      - name: Comment PR with coverage summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const summaryPath = path.join(process.env.GITHUB_WORKSPACE, 'coverage', 'coverage-summary.json');
+            if (!fs.existsSync(summaryPath)) {
+              console.log('Coverage summary not found, skipping coverage comment');
+              return;
+            }
+
+            const { total } = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+            const badge = (p) => p >= 80 ? '🟢' : p >= 60 ? '🟡' : '🔴';
+
+            const comment = [
+              '## 📊 Code Coverage Report',
+              '',
+              '| Metric | Coverage | Status |',
+              '|--------|----------|--------|',
+              `| Statements | ${total.statements.pct}% | ${badge(total.statements.pct)} |`,
+              `| Branches | ${total.branches.pct}% | ${badge(total.branches.pct)} |`,
+              `| Functions | ${total.functions.pct}% | ${badge(total.functions.pct)} |`,
+              `| Lines | ${total.lines.pct}% | ${badge(total.lines.pct)} |`,
+              '',
+              `**Full coverage report:** See [Build Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            ].join('\n');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            }).catch(err => console.log('Failed to comment on PR:', err.message));

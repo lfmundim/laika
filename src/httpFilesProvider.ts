@@ -1,3 +1,6 @@
+// Code coverage excluded: this file uses vscode.workspace.createFileSystemWatcher,
+// vscode.workspace.findFiles, and vscode.TreeDataProvider, all of which require the
+// VS Code extension host. Unit testing requires @vscode/test-electron, deferred.
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';

@@ -1,3 +1,6 @@
+// Code coverage excluded: this file creates vscode.WebviewPanel instances via
+// vscode.window.createWebviewPanel, which requires the VS Code extension host.
+// Unit testing requires @vscode/test-electron (integration tests), deferred.
 import * as vscode from 'vscode';
 import { HistoryEntry } from './historyStore';
 
