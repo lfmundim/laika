@@ -4,17 +4,32 @@ import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
 import { parseHttpFile } from './httpParser';
 import { RequestPanel } from './requestPanel';
 import { discoverEnvironments, findEnvFileForHttp, loadEnvironment } from './envLoader';
+import { HistoryStore } from './historyStore';
+import { HistoryProvider } from './historyProvider';
+import { HistoryPanel } from './historyPanel';
 
 const ACTIVE_ENV_KEY = 'laika.activeEnvironment';
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new HttpFilesProvider(context);
+  const historyStore = new HistoryStore(context.globalStorageUri);
+  const historyProvider = new HistoryProvider(historyStore);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('laikaHttpFiles', provider),
+    vscode.window.createTreeView('laikaHistory', { treeDataProvider: historyProvider }),
 
     vscode.commands.registerCommand('laika.refreshFiles', () => {
       provider.refresh();
+    }),
+
+    vscode.commands.registerCommand('laika.clearHistory', () => {
+      historyStore.clear();
+      historyProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand('laika.showHistoryEntry', (item: import('./historyProvider').HistoryEntryItem) => {
+      HistoryPanel.show(item.entry, context);
     }),
 
     vscode.commands.registerCommand('laika.selectEnvironment', async () => {
@@ -81,7 +96,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
 
-      RequestPanel.show(item.parsed, fileVars, item.fileUri.fsPath, context, envVars, activeEnvName);
+      RequestPanel.show(
+        item.parsed, fileVars, item.fileUri.fsPath, context, envVars, activeEnvName,
+        historyStore, () => historyProvider.refresh(),
+      );
     }),
   );
 

@@ -18,7 +18,10 @@ A VS Code extension for browsing and firing `.http` file requests — a visual c
 
 ## The sidebar
 
-The Laika panel lists every `.http` file found in the workspace. Files are watched automatically — add, delete, or save one and the tree updates instantly. Use the **↻** button at the top of the panel to force a refresh.
+The Laika panel has two views:
+
+- **HTTP Files** — lists every `.http` file found in the workspace. Files are watched automatically — add, delete, or save one and the tree updates instantly. Use the **↻** button to force a refresh.
+- **History** — shows the last 100 sent requests, newest first. Click any entry to open a read-only detail panel. Use the **🗑** button to clear the log.
 
 ## The request panel
 
@@ -62,10 +65,25 @@ Content-Type: application/json
 | `###` | Separator between requests |
 | `### Label` | Separator with a display name |
 | `# @name Foo` | Request name (overrides separator label) |
+| `# Description text` | Markdown description shown in the request panel |
 | `@var = value` | File-scoped variable declaration |
 | `{{var}}` | Variable substitution (URL, headers, body) |
 | `Key: Value` | Request header |
 | *(blank line)* | Marks the end of headers; everything after is the body |
+
+### Request descriptions
+
+Any `#` or `//` comment lines that appear before the HTTP method line (and aren't `@` annotations like `@name`) are treated as a markdown description and displayed in the request panel:
+
+```http
+### Get Pokémon
+# Fetches a single Pokémon from the PokeAPI.
+# Supports **name** or numeric *ID* as the path parameter.
+# @name GetPokemon
+GET https://pokeapi.co/api/v2/pokemon/{{name}}
+```
+
+Supported formatting: `**bold**`, `*italic*`, `` `inline code` ``, `- bullet list`.
 
 ## Environments
 

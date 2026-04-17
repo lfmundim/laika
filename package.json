@@ -31,6 +31,10 @@
         {
           "id": "laikaHttpFiles",
           "name": "HTTP Files"
+        },
+        {
+          "id": "laikaHistory",
+          "name": "History"
         }
       ]
     },
@@ -49,6 +53,15 @@
         "command": "laika.selectEnvironment",
         "title": "Select Environment",
         "icon": "$(server-environment)"
+      },
+      {
+        "command": "laika.clearHistory",
+        "title": "Clear History",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "laika.showHistoryEntry",
+        "title": "Show History Entry"
       }
     ],
     "menus": {
@@ -61,6 +74,11 @@
         {
           "command": "laika.selectEnvironment",
           "when": "view == laikaHttpFiles",
+          "group": "navigation"
+        },
+        {
+          "command": "laika.clearHistory",
+          "when": "view == laikaHistory",
           "group": "navigation"
         }
       ],
