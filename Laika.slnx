@@ -1,0 +1,5 @@
+<VisualStudioSolution Version="1.0">
+  <Folder Name="sample">
+    <Project Path="sample/dotnet-hello-api/dotnet-hello-api.csproj" />
+  </Folder>
+</VisualStudioSolution>
