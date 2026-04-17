@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.x-beta] — 2026-04-17
+
+### Added
+- **Automated Testing & CI Improvements:**
+  - Unit test suite (32 tests) covering `.http` file parsing, variable resolution, and substitution logic via Mocha
+  - Type checking and ESLint run as part of CI pipelines with **zero-warning enforcement** — all style warnings are treated as build errors
+  - Enhanced release workflow now runs `check-types`, `lint`, and `test` before packaging and publishing to VS Code Marketplace
+  - New PR validation workflow gates pull requests with the same quality checks (no publishing step)
+
+---
+
 ## [0.3.x-beta] — 2026-04-17
 
 ### Added
