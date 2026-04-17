@@ -4,6 +4,7 @@
 [![Visual Studio Marketplace Version](https://vsmarketplacebadges.dev/version/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
 [![Visual Studio Marketplace Installs](https://vsmarketplacebadges.dev/installs/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
 [![Visual Studio Marketplace Rating](https://vsmarketplacebadges.dev/rating-star/kimdim.laika.svg)](https://marketplace.visualstudio.com/items?itemName=kimdim.laika)
+[![codecov](https://codecov.io/github/lfmundim/laika/graph/badge.svg?token=YPyRYbJLKG)](https://codecov.io/github/lfmundim/laika)
 
 A VS Code extension for browsing and firing `.http` file requests — a visual companion to the plain-text HTTP workflow, without leaving the editor.
 
