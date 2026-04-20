@@ -1,8 +1,9 @@
 {
   "name": "laika",
+  "icon": "media/marketplace.png",
   "displayName": "Laika",
   "description": "A visual explorer for .http files",
-  "version": "0.1.0-beta",
+  "version": "1.0.0",
   "publisher": "kimdim",
   "license": "MIT",
   "repository": {
@@ -22,7 +23,7 @@
         {
           "id": "laika",
           "title": "Laika",
-          "icon": "media/laika.png"
+          "icon": "media/icon.png"
         }
       ]
     },
