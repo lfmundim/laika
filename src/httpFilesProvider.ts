@@ -65,6 +65,7 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly getActiveEnv: () => string,
+    private readonly log?: vscode.OutputChannel,
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.http');
     watcher.onDidCreate(() => this.refresh());
@@ -107,11 +108,13 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
     try {
       const bytes = await vscode.workspace.fs.readFile(fileUri);
       text = Buffer.from(bytes).toString('utf8');
-    } catch {
+    } catch (err) {
+      this.log?.appendLine(`[getRequests] ERROR reading "${fileUri.fsPath}": ${err}`);
       return [];
     }
 
     const { requests, variables } = parseHttpFile(text);
+    this.log?.appendLine(`[getRequests] "${fileUri.fsPath}" → ${requests.length} requests, ${variables.length} vars: ${variables.map(v => `@${v.name}`).join(', ')}`);
     return requests.map(r => new RequestItem(fileUri, r, variables));
   }
 }

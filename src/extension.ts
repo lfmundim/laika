@@ -17,9 +17,14 @@ function isNoneEnv(name: string): boolean {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  const debugEnabled = vscode.workspace.getConfiguration('laika').get<boolean>('enableDebugLog', false);
+  const log = debugEnabled ? vscode.window.createOutputChannel('Laika Debug') : undefined;
+  if (log) { context.subscriptions.push(log); }
+
   const provider = new HttpFilesProvider(
     context,
     () => context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV) as string,
+    log,
   );
   const historyStore = new HistoryStore(context.globalStorageUri);
   const historyProvider = new HistoryProvider(historyStore);
@@ -88,6 +93,8 @@ export function activate(context: vscode.ExtensionContext) {
       // File vars are cached on the RequestItem when the tree is built, so no
       // second file-read is needed here. Spread to get a mutable working copy.
       const fileVars: import('./httpParser').ParsedVariable[] = [...(item.fileVars ?? [])];
+
+      log?.appendLine(`[sendRequest] request="${item.parsed?.name}" fileVars=${fileVars.length} uri="${item.fileUri?.fsPath}"`);
 
       const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV);
       let envVars: import('./envLoader').EnvVariable[] = [];

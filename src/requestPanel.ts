@@ -102,6 +102,8 @@ export class RequestPanel {
         await this.executeRequest();
       } else if (msg.type === 'updateVariable') {
         await this.updateVariable(msg.name, msg.value);
+      } else if (msg.type === 'selectEnvironment') {
+        await vscode.commands.executeCommand('laika.selectEnvironment');
       }
     }, null, context.subscriptions);
 
@@ -287,11 +289,11 @@ function buildWebviewHtml(
     ? '<div class="description">' + renderMarkdown(request.description) + '</div>\n'
     : '';
 
-  // Environment badge — treat empty string and '<none>' as the explicit no-env state
+  // Environment button — treat empty string and '<none>' as the explicit no-env state
   const isNoneEnv = !envName || envName === '<none>';
   const envLabel = isNoneEnv
-    ? 'Environment: <span class="muted">&lt;none&gt;</span>'
-    : `Environment: <strong>${esc(envName)}</strong>`;
+    ? 'Environment: <span class="muted">&lt;none&gt;</span> <span class="env-caret">&#9662;</span>'
+    : `Environment: <strong>${esc(envName)}</strong> <span class="env-caret">&#9662;</span>`;
 
   // Variables section
   const varsHtml = fileVars.length > 0
@@ -337,7 +339,7 @@ function buildWebviewHtml(
     '</head>\n' +
     '<body>\n' +
     '<div class="request-section">\n' +
-    '  <div class="env-banner">' + envLabel + '</div>\n' +
+    '  <button class="env-banner" id="btn-env-select" title="Switch environment">' + envLabel + '</button>\n' +
     (descriptionHtml ? '  ' + descriptionHtml : '') +
     '  <div class="section-label">Variables</div>\n' +
     '  <div class="section-body">' + varsHtml + '</div>\n' +
@@ -377,11 +379,16 @@ const CSS = [
   '  padding: 20px 24px; margin: 0; line-height: 1.5;',
   '}',
   '.request-section { margin-bottom: 4px; }',
-  '.env-banner {',
+  'button.env-banner {',
+  '  display: inline-flex; align-items: center; gap: 3px;',
   '  font-size: 0.8em; margin-bottom: 14px;',
+  '  background: none; border: none; padding: 0; cursor: pointer;',
   '  color: var(--vscode-descriptionForeground);',
+  '  font-family: var(--vscode-font-family);',
   '}',
-  '.env-banner strong { color: var(--vscode-foreground); }',
+  'button.env-banner:hover { color: var(--vscode-textLink-foreground); }',
+  'button.env-banner strong { color: var(--vscode-foreground); }',
+  '.env-caret { font-size: 0.85em; opacity: 0.7; }',
   '.request-line { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }',
   '.badge {',
   '  font-size: 0.78em; font-weight: 700; padding: 2px 9px; border-radius: 3px;',
@@ -472,6 +479,14 @@ const SCRIPT = [
   'var btn = document.getElementById("btn-send");',
   'var responseDiv = document.getElementById("response");',
   'var responseContent = document.getElementById("response-content");',
+  '',
+  '// ---- Environment picker ----',
+  'var btnEnv = document.getElementById("btn-env-select");',
+  'if (btnEnv) {',
+  '  btnEnv.addEventListener("click", function() {',
+  '    vscode.postMessage({ type: "selectEnvironment" });',
+  '  });',
+  '}',
   '',
   '// ---- Live variable resolution ----',
   'var currentVars = Object.assign({}, INIT_DATA.vars);',
