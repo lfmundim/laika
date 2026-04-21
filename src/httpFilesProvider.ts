@@ -3,11 +3,23 @@
 // VS Code extension host. Unit testing requires @vscode/test-electron, deferred.
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { parseHttpFile, ParsedRequest } from './httpParser';
+import { parseHttpFile, ParsedRequest, ParsedVariable } from './httpParser';
 
 // ---------------------------------------------------------------------------
 // Tree item types
 // ---------------------------------------------------------------------------
+
+export class EnvItem extends vscode.TreeItem {
+  constructor(envName: string) {
+    const isNone = !envName || envName === '<none>';
+    super('Environment', vscode.TreeItemCollapsibleState.None);
+    this.description = isNone ? '<none>' : envName;
+    this.contextValue = 'envSelector';
+    this.iconPath = new vscode.ThemeIcon('server-environment');
+    this.tooltip = 'Click to switch environment';
+    this.command = { command: 'laika.selectEnvironment', title: 'Select Environment' };
+  }
+}
 
 export class HttpFileItem extends vscode.TreeItem {
   readonly resourceUri: vscode.Uri;
@@ -25,6 +37,7 @@ export class RequestItem extends vscode.TreeItem {
   constructor(
     public readonly fileUri: vscode.Uri,
     public readonly parsed: ParsedRequest,
+    public readonly fileVars: ParsedVariable[],
   ) {
     super(parsed.name, vscode.TreeItemCollapsibleState.None);
     this.contextValue = 'request';
@@ -39,7 +52,7 @@ export class RequestItem extends vscode.TreeItem {
   }
 }
 
-export type HttpTreeItem = HttpFileItem | RequestItem;
+export type HttpTreeItem = EnvItem | HttpFileItem | RequestItem;
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -49,7 +62,10 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
   private _onDidChangeTreeData = new vscode.EventEmitter<HttpTreeItem | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly context: vscode.ExtensionContext) {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly getActiveEnv: () => string,
+  ) {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.http');
     watcher.onDidCreate(() => this.refresh());
     watcher.onDidDelete(() => this.refresh());
@@ -67,7 +83,8 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
 
   async getChildren(element?: HttpTreeItem): Promise<HttpTreeItem[]> {
     if (!element) {
-      return this.getHttpFiles();
+      const files = await this.getHttpFiles();
+      return [new EnvItem(this.getActiveEnv()), ...files];
     }
     if (element instanceof HttpFileItem) {
       return this.getRequests(element.resourceUri);
@@ -94,7 +111,7 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
       return [];
     }
 
-    const { requests } = parseHttpFile(text);
-    return requests.map(r => new RequestItem(fileUri, r));
+    const { requests, variables } = parseHttpFile(text);
+    return requests.map(r => new RequestItem(fileUri, r, variables));
   }
 }

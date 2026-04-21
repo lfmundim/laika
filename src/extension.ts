@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
-import { parseHttpFile, extractReferencedVarNames } from './httpParser';
+import { extractReferencedVarNames } from './httpParser';
 import { RequestPanel } from './requestPanel';
 import { discoverEnvironments, findEnvFileForHttp, loadEnvironment } from './envLoader';
 import { HistoryStore } from './historyStore';
@@ -17,7 +17,10 @@ function isNoneEnv(name: string): boolean {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const provider = new HttpFilesProvider(context);
+  const provider = new HttpFilesProvider(
+    context,
+    () => context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV) as string,
+  );
   const historyStore = new HistoryStore(context.globalStorageUri);
   const historyProvider = new HistoryProvider(historyStore);
 
@@ -66,6 +69,9 @@ export function activate(context: vscode.ExtensionContext) {
         RequestPanel.refresh([], selectedName);
       }
 
+      // Refresh the tree so the EnvItem reflects the new selection.
+      provider.refresh();
+
       if (!isNoneEnv(selectedName)) {
         vscode.window.showInformationMessage(`Laika: environment set to "${selectedName}".`);
       } else {
@@ -73,20 +79,15 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }),
 
-    vscode.commands.registerCommand('laika.sendRequest', async (item?: RequestItem) => {
+    vscode.commands.registerCommand('laika.sendRequest', (item?: RequestItem) => {
       if (!item) {
         vscode.window.showInformationMessage('Select a request from the Laika panel to send it.');
         return;
       }
 
-      let fileVars: import('./httpParser').ParsedVariable[] = [];
-      try {
-        // Use the VS Code file system API so reads work on remote/tunnel workspaces.
-        const bytes = await vscode.workspace.fs.readFile(item.fileUri);
-        fileVars = parseHttpFile(Buffer.from(bytes).toString('utf8')).variables;
-      } catch {
-        // proceed without file-level variables
-      }
+      // File vars are cached on the RequestItem when the tree is built, so no
+      // second file-read is needed here. Spread to get a mutable working copy.
+      const fileVars: import('./httpParser').ParsedVariable[] = [...(item.fileVars ?? [])];
 
       const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV);
       let envVars: import('./envLoader').EnvVariable[] = [];
