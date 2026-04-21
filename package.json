@@ -69,6 +69,16 @@
         "title": "Open File"
       }
     ],
+    "configuration": {
+      "title": "Laika",
+      "properties": {
+        "laika.enableDebugLog": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write diagnostic information to the 'Laika Debug' Output channel. Enable when troubleshooting variable loading or environment issues, then share the output when filing a bug report."
+        }
+      }
+    },
     "menus": {
       "view/title": [
         {
