@@ -3,7 +3,6 @@
 // VS Code extension host. Unit testing requires @vscode/test-electron, deferred.
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { parseHttpFile, ParsedRequest } from './httpParser';
 
 // ---------------------------------------------------------------------------
@@ -86,10 +85,11 @@ export class HttpFilesProvider implements vscode.TreeDataProvider<HttpTreeItem> 
     return uris.map(uri => new HttpFileItem(uri));
   }
 
-  private getRequests(fileUri: vscode.Uri): RequestItem[] {
+  private async getRequests(fileUri: vscode.Uri): Promise<RequestItem[]> {
     let text: string;
     try {
-      text = fs.readFileSync(fileUri.fsPath, 'utf8');
+      const bytes = await vscode.workspace.fs.readFile(fileUri);
+      text = Buffer.from(bytes).toString('utf8');
     } catch {
       return [];
     }

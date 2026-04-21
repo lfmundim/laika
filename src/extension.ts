@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
 import { parseHttpFile, extractReferencedVarNames } from './httpParser';
@@ -74,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }),
 
-    vscode.commands.registerCommand('laika.sendRequest', (item?: RequestItem) => {
+    vscode.commands.registerCommand('laika.sendRequest', async (item?: RequestItem) => {
       if (!item) {
         vscode.window.showInformationMessage('Select a request from the Laika panel to send it.');
         return;
@@ -82,8 +81,9 @@ export function activate(context: vscode.ExtensionContext) {
 
       let fileVars: import('./httpParser').ParsedVariable[] = [];
       try {
-        const text = fs.readFileSync(item.fileUri.fsPath, 'utf8');
-        fileVars = parseHttpFile(text).variables;
+        // Use the VS Code file system API so reads work on remote/tunnel workspaces.
+        const bytes = await vscode.workspace.fs.readFile(item.fileUri);
+        fileVars = parseHttpFile(Buffer.from(bytes).toString('utf8')).variables;
       } catch {
         // proceed without file-level variables
       }
