@@ -36,12 +36,18 @@ export class RequestPanel {
     historyRefreshCallback?: () => void,
   ): void {
     if (RequestPanel.current) {
-      // Reveal before updating so the webview is active when its HTML is replaced,
-      // preventing the occasional blank-panel issue on request switches.
-      RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
+      // Update content first (posts a message to the live webview DOM), then reveal.
+      // Revealing first was the original approach but caused blank panels: the reveal
+      // triggers a VS Code UI pass that races against the subsequent HTML/message update.
+      // By posting the update before revealing, the message is queued and delivered the
+      // instant the webview activates — no blank flash.
       RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
       RequestPanel.current.historyStore = historyStore;
       RequestPanel.current.historyRefreshCallback = historyRefreshCallback;
+      // Reveal in the panel's current column to avoid inadvertent column moves that
+      // force a webview reload (passing ViewColumn.Beside could move the panel if the
+      // user's layout has changed since the panel was created).
+      RequestPanel.current.panel.reveal(RequestPanel.current.panel.viewColumn);
       return;
     }
     RequestPanel.current = new RequestPanel(
