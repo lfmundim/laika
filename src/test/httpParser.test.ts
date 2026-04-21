@@ -71,6 +71,18 @@ GET {{baseUrl}}/users`;
 			assert.equal(result.variables[1].line, 1);
 		});
 
+		it('parses variables and requests from files with Windows CRLF line endings', () => {
+			const text = '@baseUrl = https://api.example.com\r\n@token = abc\r\n\r\nGET {{baseUrl}}/users\r\n';
+			const result = parseHttpFile(text);
+			assert.equal(result.variables.length, 2);
+			assert.equal(result.variables[0].name, 'baseUrl');
+			assert.equal(result.variables[0].value, 'https://api.example.com');
+			assert.equal(result.variables[1].name, 'token');
+			assert.equal(result.variables[1].value, 'abc');
+			assert.equal(result.requests.length, 1);
+			assert.equal(result.requests[0].url, '{{baseUrl}}/users');
+		});
+
 		it('parses headers up to the first blank line', () => {
 			const text = `GET https://api.example.com
 Content-Type: application/json

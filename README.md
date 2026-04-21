@@ -126,7 +126,7 @@ Place a **`http-client.env.json.user`** file alongside the main file for values 
 
 ### Selecting an environment
 
-Click the environment button in the Laika toolbar (or run **Laika: Select Environment** from the Command Palette) and pick an environment. Choose **None** to clear it. The selection persists across sessions.
+The **HTTP Files** view shows an **Environment** item at the top that displays the currently active environment. Click it (or the `$(server-environment)` toolbar button, or run **Laika: Select Environment** from the Command Palette) to open the picker. Choose **`<none>`** to use only in-file `@var` declarations. The selection persists across sessions and updates the tree item label immediately.
 
 ### Variable priority
 

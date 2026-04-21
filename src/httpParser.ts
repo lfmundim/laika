@@ -60,8 +60,10 @@ export interface ParsedFile {
  * to get a request with `{{var}}` tokens replaced.
  */
 export function parseHttpFile(text: string): ParsedFile {
-  const variables = extractVariables(text);
-  const blocks = splitIntoBlocks(text);
+  // Normalize line endings so Windows CRLF files parse identically to LF files.
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const variables = extractVariables(normalized);
+  const blocks = splitIntoBlocks(normalized);
   const requests = blocks
     .map((block, index) => parseBlock(block, index))
     .filter((r): r is ParsedRequest => r !== null);

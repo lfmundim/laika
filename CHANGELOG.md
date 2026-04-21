@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.x-beta] — 2026-04-21
+
+### Added
+- **Environment item in the tree view** — the HTTP Files view now shows a persistent `Environment` entry at the top displaying the currently active environment name. Clicking it opens the environment picker directly, removing the need to locate the toolbar button.
+- **Clickable environment button in the request panel** — the Environment badge at the top of every request panel is now a button (with a `▾` caret). Clicking it opens the environment picker without leaving the panel.
+- **Debug logging setting** (`laika.enableDebugLog`) — off by default. When enabled, writes diagnostic information (file reads, variable counts, active environment) to a dedicated **Laika Debug** Output channel to assist with troubleshooting.
+
+### Fixed
+- **Windows CRLF line endings** — `.http` files saved with `\r\n` line endings (Windows) had their `@var` declarations silently ignored, causing the Variables section to show empty values. `parseHttpFile` now normalises line endings before parsing.
+- **Empty variable values** — `sendRequest` performed a redundant second file-read that silently failed in certain environments (particularly on Windows), resulting in variables appearing in the panel but with no values. File-level variables are now cached on the tree item at build time and reused directly.
+
+---
+
 ## [0.4.x-beta] — 2026-04-17
 
 ### Added

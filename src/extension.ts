@@ -1,7 +1,6 @@
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { HttpFilesProvider, RequestItem } from './httpFilesProvider';
-import { parseHttpFile, extractReferencedVarNames } from './httpParser';
+import { extractReferencedVarNames } from './httpParser';
 import { RequestPanel } from './requestPanel';
 import { discoverEnvironments, findEnvFileForHttp, loadEnvironment } from './envLoader';
 import { HistoryStore } from './historyStore';
@@ -9,9 +8,24 @@ import { HistoryProvider } from './historyProvider';
 import { HistoryPanel } from './historyPanel';
 
 const ACTIVE_ENV_KEY = 'laika.activeEnvironment';
+/** Sentinel value meaning "no environment — use only in-file variables". */
+const NONE_ENV = '<none>';
+
+/** Returns true when the given env name represents the explicit no-env state. */
+function isNoneEnv(name: string): boolean {
+  return !name || name === NONE_ENV;
+}
 
 export function activate(context: vscode.ExtensionContext) {
-  const provider = new HttpFilesProvider(context);
+  const debugEnabled = vscode.workspace.getConfiguration('laika').get<boolean>('enableDebugLog', false);
+  const log = debugEnabled ? vscode.window.createOutputChannel('Laika Debug') : undefined;
+  if (log) { context.subscriptions.push(log); }
+
+  const provider = new HttpFilesProvider(
+    context,
+    () => context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV) as string,
+    log,
+  );
   const historyStore = new HistoryStore(context.globalStorageUri);
   const historyProvider = new HistoryProvider(historyStore);
 
@@ -35,16 +49,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('laika.selectEnvironment', async () => {
       const environments = discoverEnvironments(vscode.workspace.workspaceFolders);
 
-      if (environments.length === 0) {
-        vscode.window.showInformationMessage(
-          'No http-client.env.json found in workspace roots.',
-        );
-        return;
-      }
-
+      const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV);
       const items = [
-        { label: 'None', description: 'Clear active environment' },
-        ...environments.map(e => ({ label: e.name, description: e.envFilePath })),
+        { label: NONE_ENV, description: 'Use only in-file variables (default)', picked: isNoneEnv(activeEnvName) },
+        ...environments.map(e => ({ label: e.name, description: e.envFilePath, picked: e.name === activeEnvName })),
       ];
 
       const picked = await vscode.window.showQuickPick(items, {
@@ -53,12 +61,12 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (!picked) { return; }
 
-      const selectedName = picked.label === 'None' ? '' : picked.label;
+      const selectedName = picked.label === NONE_ENV ? NONE_ENV : picked.label;
       await context.workspaceState.update(ACTIVE_ENV_KEY, selectedName);
 
       // Refresh the open panel — resolve its env file from its .http file path
       const panelFilePath = RequestPanel.currentFilePath;
-      if (panelFilePath && selectedName) {
+      if (panelFilePath && !isNoneEnv(selectedName)) {
         const envFilePath = findEnvFileForHttp(panelFilePath);
         const envVars = envFilePath ? loadEnvironment(envFilePath, selectedName) : [];
         RequestPanel.refresh(envVars, selectedName);
@@ -66,10 +74,13 @@ export function activate(context: vscode.ExtensionContext) {
         RequestPanel.refresh([], selectedName);
       }
 
-      if (selectedName) {
+      // Refresh the tree so the EnvItem reflects the new selection.
+      provider.refresh();
+
+      if (!isNoneEnv(selectedName)) {
         vscode.window.showInformationMessage(`Laika: environment set to "${selectedName}".`);
       } else {
-        vscode.window.showInformationMessage('Laika: environment cleared.');
+        vscode.window.showInformationMessage('Laika: environment set to <none> (in-file variables only).');
       }
     }),
 
@@ -79,17 +90,15 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      let fileVars: import('./httpParser').ParsedVariable[] = [];
-      try {
-        const text = fs.readFileSync(item.fileUri.fsPath, 'utf8');
-        fileVars = parseHttpFile(text).variables;
-      } catch {
-        // proceed without file-level variables
-      }
+      // File vars are cached on the RequestItem when the tree is built, so no
+      // second file-read is needed here. Spread to get a mutable working copy.
+      const fileVars: import('./httpParser').ParsedVariable[] = [...(item.fileVars ?? [])];
 
-      const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, '');
+      log?.appendLine(`[sendRequest] request="${item.parsed?.name}" fileVars=${fileVars.length} uri="${item.fileUri?.fsPath}"`);
+
+      const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV);
       let envVars: import('./envLoader').EnvVariable[] = [];
-      if (activeEnvName) {
+      if (!isNoneEnv(activeEnvName)) {
         const envFilePath = findEnvFileForHttp(item.fileUri.fsPath);
         if (envFilePath) {
           envVars = loadEnvironment(envFilePath, activeEnvName);
@@ -111,13 +120,17 @@ export function activate(context: vscode.ExtensionContext) {
         historyStore, () => historyProvider.refresh(),
       );
     }),
+
+    vscode.commands.registerCommand('laika.openFile', (item: import('./httpFilesProvider').HttpFileItem) => {
+      vscode.window.showTextDocument(item.resourceUri);
+    }),
   );
 
   // Watch for changes to http-client.env.json and its .user override so the
   // open request panel always reflects the latest values without a manual refresh.
   const reloadEnvIntoPanel = () => {
-    const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, '');
-    if (!activeEnvName) { return; }
+    const activeEnvName: string = context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV);
+    if (isNoneEnv(activeEnvName)) { return; }
     const panelFilePath = RequestPanel.currentFilePath;
     if (!panelFilePath) { return; }
     const envFilePath = findEnvFileForHttp(panelFilePath);
