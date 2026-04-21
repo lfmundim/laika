@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.1.x-beta] — 2026-04-21
+## [1.0.x-beta] — 2026-04-21
 
 ### Added
 - **Environment item in the tree view** — the HTTP Files view now shows a persistent `Environment` entry at the top displaying the currently active environment name. Clicking it opens the environment picker directly, removing the need to locate the toolbar button.
