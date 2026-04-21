@@ -36,10 +36,12 @@ export class RequestPanel {
     historyRefreshCallback?: () => void,
   ): void {
     if (RequestPanel.current) {
+      // Reveal before updating so the webview is active when its HTML is replaced,
+      // preventing the occasional blank-panel issue on request switches.
+      RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
       RequestPanel.current.historyStore = historyStore;
       RequestPanel.current.historyRefreshCallback = historyRefreshCallback;
-      RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
     RequestPanel.current = new RequestPanel(
@@ -285,10 +287,11 @@ function buildWebviewHtml(
     ? '<div class="description">' + renderMarkdown(request.description) + '</div>\n'
     : '';
 
-  // Environment badge
-  const envLabel = envName
-    ? `Environment: <strong>${esc(envName)}</strong>`
-    : 'Environment: <span class="muted">None</span>';
+  // Environment badge — treat empty string and '<none>' as the explicit no-env state
+  const isNoneEnv = !envName || envName === '<none>';
+  const envLabel = isNoneEnv
+    ? 'Environment: <span class="muted">&lt;none&gt;</span>'
+    : `Environment: <strong>${esc(envName)}</strong>`;
 
   // Variables section
   const varsHtml = fileVars.length > 0

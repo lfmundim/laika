@@ -92,6 +92,7 @@ jobs:
             --pat "$VSCE_PAT"
 
       - name: Rename .vsix to include full version
+        if: steps.ver.outputs.numeric != steps.ver.outputs.full
         run: mv laika-${{ steps.ver.outputs.numeric }}.vsix laika-${{ steps.ver.outputs.full }}.vsix
 
       - name: Create GitHub release
