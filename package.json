@@ -63,6 +63,10 @@
       {
         "command": "laika.showHistoryEntry",
         "title": "Show History Entry"
+      },
+      {
+        "command": "laika.openFile",
+        "title": "Open File"
       }
     ],
     "menus": {
@@ -88,6 +92,11 @@
           "command": "laika.sendRequest",
           "when": "view == laikaHttpFiles && viewItem == request",
           "group": "inline"
+        },
+        {
+          "command": "laika.openFile",
+          "when": "view == laikaHttpFiles && viewItem == httpFile",
+          "group": "navigation"
         }
       ]
     }
