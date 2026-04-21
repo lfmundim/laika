@@ -36,12 +36,18 @@ export class RequestPanel {
     historyRefreshCallback?: () => void,
   ): void {
     if (RequestPanel.current) {
-      // Reveal before updating so the webview is active when its HTML is replaced,
-      // preventing the occasional blank-panel issue on request switches.
-      RequestPanel.current.panel.reveal(vscode.ViewColumn.Beside);
+      // Update content first (posts a message to the live webview DOM), then reveal.
+      // Revealing first was the original approach but caused blank panels: the reveal
+      // triggers a VS Code UI pass that races against the subsequent HTML/message update.
+      // By posting the update before revealing, the message is queued and delivered the
+      // instant the webview activates — no blank flash.
       RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
       RequestPanel.current.historyStore = historyStore;
       RequestPanel.current.historyRefreshCallback = historyRefreshCallback;
+      // Reveal in the panel's current column to avoid inadvertent column moves that
+      // force a webview reload (passing ViewColumn.Beside could move the panel if the
+      // user's layout has changed since the panel was created).
+      RequestPanel.current.panel.reveal(RequestPanel.current.panel.viewColumn);
       return;
     }
     RequestPanel.current = new RequestPanel(
@@ -60,7 +66,7 @@ export class RequestPanel {
         v.value = envVars.find(e => e.name === v.name)?.value ?? '';
       }
     }
-    RequestPanel.current.render();
+    RequestPanel.current.renderUpdate();
   }
 
   /** The file path of the .http file displayed in the current panel, if any. */
@@ -123,11 +129,17 @@ export class RequestPanel {
     this.envVars = envVars;
     this.envName = envName;
     this.panel.title = `Laika: ${request.name}`;
-    this.render();
+    this.renderUpdate();
   }
 
   private render(): void {
     this.panel.webview.html = buildWebviewHtml(this.request, this.fileVars, this.envVars, this.envName);
+  }
+
+  /** Update an already-visible panel via postMessage to avoid a full iframe reload. */
+  private renderUpdate(): void {
+    const { html, rawUrl, vars } = buildRequestSectionData(this.request, this.fileVars, this.envVars, this.envName);
+    this.panel.webview.postMessage({ type: 'update', html, rawUrl, vars });
   }
 
   private async executeRequest(): Promise<void> {
@@ -276,12 +288,16 @@ function renderMarkdown(text: string): string {
     .join('');
 }
 
-function buildWebviewHtml(
+/**
+ * Builds the swappable inner HTML for the request section plus the JS init data.
+ * Called both on first render and when pushing a live update via postMessage.
+ */
+function buildRequestSectionData(
   request: ParsedRequest,
   fileVars: ParsedVariable[],
   envVars: EnvVariable[],
   envName: string,
-): string {
+): { html: string; rawUrl: string; vars: Record<string, string> } {
   const resolved = resolveRequest(request, fileVars, envVars);
 
   // Description block (markdown)
@@ -320,24 +336,7 @@ function buildWebviewHtml(
     ? '<pre class="code" id="resolved-body" data-raw="' + esc(request.body) + '">' + esc(resolved.body ?? '') + '</pre>'
     : '<span class="muted">No body</span>';
 
-  // Init data passed to client-side JS for live resolution
-  // Env vars are base layer; file vars override them for the live preview
-  const varMap: Record<string, string> = {};
-  for (const v of envVars) { varMap[v.name] = v.value; }
-  for (const v of fileVars) { varMap[v.name] = v.value; }
-  const initData = JSON.stringify({ rawUrl: request.url, vars: varMap });
-
-  return (
-    '<!DOCTYPE html>\n' +
-    '<html lang="en">\n' +
-    '<head>\n' +
-    '<meta charset="UTF-8">\n' +
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\';">\n' +
-    '<style>\n' +
-    CSS +
-    '\n</style>\n' +
-    '</head>\n' +
-    '<body>\n' +
+  const html =
     '<div class="request-section">\n' +
     '  <button class="env-banner" id="btn-env-select" title="Switch environment">' + envLabel + '</button>\n' +
     (descriptionHtml ? '  ' + descriptionHtml : '') +
@@ -352,6 +351,38 @@ function buildWebviewHtml(
     '  <div class="section-label">Body</div>\n' +
     '  <div class="section-body">' + bodyHtml + '</div>\n' +
     '  <button id="btn-send">&#9654;&nbsp; Send Request</button>\n' +
+    '</div>\n';
+
+  // Env vars are base layer; file vars override them for the live preview
+  const vars: Record<string, string> = {};
+  for (const v of envVars) { vars[v.name] = v.value; }
+  for (const v of fileVars) { vars[v.name] = v.value; }
+
+  return { html, rawUrl: request.url, vars };
+}
+
+function buildWebviewHtml(
+  request: ParsedRequest,
+  fileVars: ParsedVariable[],
+  envVars: EnvVariable[],
+  envName: string,
+): string {
+  const { html, rawUrl, vars } = buildRequestSectionData(request, fileVars, envVars, envName);
+  const initData = JSON.stringify({ rawUrl, vars });
+
+  return (
+    '<!DOCTYPE html>\n' +
+    '<html lang="en">\n' +
+    '<head>\n' +
+    '<meta charset="UTF-8">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\';">\n' +
+    '<style>\n' +
+    CSS +
+    '\n</style>\n' +
+    '</head>\n' +
+    '<body>\n' +
+    '<div id="main-content">\n' +
+    html +
     '</div>\n' +
     '<hr class="divider">\n' +
     '<div id="response">\n' +
@@ -476,7 +507,7 @@ const CSS = [
 
 const SCRIPT = [
   'var vscode = acquireVsCodeApi();',
-  'var btn = document.getElementById("btn-send");',
+  'var btn;',
   'var responseDiv = document.getElementById("response");',
   'var responseContent = document.getElementById("response-content");',
   '',
@@ -511,30 +542,51 @@ const SCRIPT = [
   '  }',
   '}',
   '',
-  'document.querySelectorAll(".var-input").forEach(function(input) {',
-  '  input.addEventListener("input", function() {',
-  '    currentVars[this.dataset.name] = this.value;',
-  '    updateResolvedDisplay();',
+  '// ---- Attach all interactive listeners — called on first render and after DOM swap ----',
+  'function attachListeners() {',
+  '  btn = document.getElementById("btn-send");',
+  '  if (btn) {',
+  '    btn.addEventListener("click", function() {',
+  '      btn.disabled = true;',
+  '      btn.innerHTML = "<span class=\\"spinner\\"></span>&nbsp;Sending\u2026";',
+  '      vscode.postMessage({ type: "send" });',
+  '    });',
+  '  }',
+  '  document.querySelectorAll(".var-input").forEach(function(input) {',
+  '    input.addEventListener("input", function() {',
+  '      currentVars[this.dataset.name] = this.value;',
+  '      updateResolvedDisplay();',
+  '    });',
+  '    input.addEventListener("change", function() {',
+  '      vscode.postMessage({ type: "updateVariable", name: this.dataset.name, value: this.value });',
+  '    });',
+  '    input.addEventListener("keydown", function(e) {',
+  '      if (e.key === "Enter") { this.blur(); }',
+  '    });',
   '  });',
-  '  input.addEventListener("change", function() {',
-  '    vscode.postMessage({ type: "updateVariable", name: this.dataset.name, value: this.value });',
-  '  });',
-  '  input.addEventListener("keydown", function(e) {',
-  '    if (e.key === "Enter") { this.blur(); }',
-  '  });',
-  '});',
+  '}',
   '',
-  '// ---- Send request ----',
-  'btn.addEventListener("click", function() {',
-  '  btn.disabled = true;',
-  '  btn.innerHTML = "<span class=\\"spinner\\"></span>&nbsp;Sending\u2026";',
-  '  vscode.postMessage({ type: "send" });',
-  '});',
+  'attachListeners();',
   '',
   'window.addEventListener("message", function(e) {',
   '  var msg = e.data;',
-  '  btn.disabled = false;',
-  '  btn.innerHTML = "&#9654;&nbsp; Send Request";',
+  '',
+  '  // ---- Request switch: swap inner HTML without a full iframe reload ----',
+  '  if (msg.type === "update") {',
+  '    var mainContent = document.getElementById("main-content");',
+  '    if (mainContent) { mainContent.innerHTML = msg.html; }',
+  '    INIT_DATA.rawUrl = msg.rawUrl;',
+  '    currentVars = Object.assign({}, msg.vars);',
+  '    attachListeners();',
+  '    responseDiv.style.display = "none";',
+  '    responseContent.innerHTML = "";',
+  '    return;',
+  '  }',
+  '',
+  '  if (btn) {',
+  '    btn.disabled = false;',
+  '    btn.innerHTML = "&#9654;&nbsp; Send Request";',
+  '  }',
   '  responseDiv.style.display = "block";',
   '',
   '  if (msg.type === "response") {',
