@@ -1,0 +1,38 @@
+// Scripts demo — pre/post request scripts with PokeAPI (no auth required).
+//
+// Select the "prod" environment before sending, then open the
+// "Laika Scripts" Output channel to see console.log output from each script.
+//
+// The $shared post-script (scripts/post-log-status.js) is wired in
+// http-client.env.json and runs automatically after every request.
+
+@pokemon         = bulbasaur
+@lastPokemonName = bulbasaur
+
+### Fetch a Pokémon — pre-script adds a timestamp header
+// Pre-script runs before the request.
+// Open the History panel after sending to confirm X-Request-Timestamp is present.
+# @name fetchPokemon
+# @pre ./scripts/pre-add-timestamp.js
+# @post ./scripts/post-save-pokemon-name.js
+GET {{baseUrl}}/pokemon/{{pokemon}}
+Accept: application/json
+
+###
+
+### Log request details before sending
+// Demonstrates the pre-script logging the resolved URL.
+# @name fetchType
+# @pre ./scripts/pre-log-request.js
+GET {{baseUrl}}/type/fire
+Accept: application/json
+
+###
+
+### Use the saved Pokémon name from the previous response
+// Send the "Fetch a Pokémon" request first.
+// The post-script writes the name into @lastPokemonName.
+// This request then uses that saved value via variable substitution.
+# @name fetchSavedPokemon
+GET {{baseUrl}}/pokemon/{{lastPokemonName}}
+Accept: application/json

@@ -67,6 +67,8 @@ Content-Type: application/json
 | `### Label` | Separator with a display name |
 | `# @name Foo` | Request name (overrides separator label) |
 | `# Description text` | Markdown description shown in the request panel |
+| `# @pre ./path/script.js` | Run a JavaScript file before sending the request |
+| `# @post ./path/script.js` | Run a JavaScript file after receiving the response |
 | `@var = value` | File-scoped variable declaration |
 | `{{var}}` | Variable substitution (URL, headers, body) |
 | `Key: Value` | Request header |
@@ -148,6 +150,141 @@ Authorization: Bearer {{API_KEY}}
 ```
 
 Switch to **dev** → sends to `http://localhost:3000/v1/health`. Switch to **staging** → sends to `https://api.staging.example.com/v1/health`. No file edits needed.
+
+## Scripts
+
+Pre and post request scripts let you run JavaScript before and after any HTTP request — for tasks like injecting authentication tokens, logging response data, or chaining values from one request into the next.
+
+### Per-request scripts
+
+Add `# @pre` and/or `# @post` annotations to a request block. Paths are relative to the `.http` file's directory:
+
+```http
+### Login
+# @name login
+# @pre ./scripts/addTimestamp.js
+# @post ./scripts/saveToken.js
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"username": "{{user}}", "password": "{{pass}}"}
+```
+
+### Environment-level scripts
+
+Add a `$scripts` key to `http-client.env.json` to run scripts for every request in an environment. Use `$shared` for scripts that apply to all environments, or scope them to a named environment:
+
+```json
+{
+  "$scripts": {
+    "pre": "./scripts/global-pre.js",
+    "post": "./scripts/global-post.js"
+  },
+  "$shared": { "baseUrl": "https://api.example.com" },
+  "dev": {
+    "$scripts": { "pre": "./scripts/dev-pre.js" },
+    "baseUrl": "http://localhost:3000"
+  }
+}
+```
+
+### Execution order
+
+Scripts run in this order for every request:
+
+1. `$shared.$scripts.pre`
+2. Active environment `$scripts.pre`
+3. Request `# @pre`
+4. **→ HTTP request fires ←**
+5. Request `# @post`
+6. Active environment `$scripts.post`
+7. `$shared.$scripts.post`
+
+### Script API
+
+Scripts receive a context object as their global scope. All properties are accessible as top-level variables.
+
+**Pre-script context:**
+
+```typescript
+request: {
+  url: string        // mutable
+  method: string     // mutable
+  headers: Record<string, string>  // mutable
+  body: string | undefined         // mutable
+}
+variables: Record<string, string>  // mutable — changes written back to .http file
+env: Record<string, string>        // read-only environment variable snapshot
+console: { log, warn, error }      // output to "Laika Scripts" channel
+```
+
+**Post-script context:**
+
+```typescript
+request: { url, method, headers, body }  // read-only
+response: {
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+  duration: number
+  json(): unknown  // parses body as JSON, returns null if invalid
+}
+variables: Record<string, string>  // mutable — changes written back to .http file
+console: { log, warn, error }
+```
+
+**Example — inject a timestamp header (pre-script):**
+
+```js
+request.headers['X-Timestamp'] = String(Date.now());
+```
+
+**Example — save a token for the next request (post-script):**
+
+```js
+const data = response.json();
+variables.token = data.access_token;
+```
+
+> To write back a variable, it must be declared in the `.http` file (e.g. `@token =`). Variables that exist only in the environment file are not written back.
+
+### Variable write-back
+
+When a script mutates `variables`, any changed values that have a file-level `@var` declaration are written back to the `.http` file automatically after the request completes. This enables request chaining:
+
+```http
+@token =
+
+### Step 1 — login, save token
+# @post ./scripts/saveToken.js
+POST {{baseUrl}}/login
+
+###
+
+### Step 2 — use saved token
+GET {{baseUrl}}/profile
+Authorization: Bearer {{token}}
+```
+
+### async / await
+
+Scripts support top-level `await`:
+
+```js
+const result = await someAsyncOperation();
+variables.data = result.value;
+```
+
+### Timeout
+
+Each script invocation has a configurable timeout. Set `laika.scriptTimeout` in VS Code settings (default: `10` seconds, range: `1`–`300`).
+
+### Notes
+
+- Scripts run in a Node.js `vm` sandbox — there is no `require` or module system available. Use only plain JavaScript and the provided context API.
+- Pre-script failures abort the request and show an error in the panel. Post-script failures are logged but do not suppress the response.
+- Script `console.log/warn/error` output appears in the **Laika Scripts** Output channel (always visible — no setting required).
 
 ## Contributing
 
