@@ -6,6 +6,7 @@ import {
   discoverEnvironments,
   findEnvFileForHttp,
   loadEnvironment,
+  loadEnvScripts,
 } from '../envLoader';
 
 // Helpers to create isolated temp directories for each test
@@ -219,6 +220,105 @@ describe('envLoader', () => {
         const fakeFolder = { uri: { fsPath: tmp } } as never;
         const envs = discoverEnvironments([fakeFolder]);
         assert.deepEqual(envs, []);
+      } finally {
+        cleanup(tmp);
+      }
+    });
+  });
+
+  describe('loadEnvScripts', () => {
+    it('returns sharedPre as absolute path from $shared.$scripts.pre', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { $shared: { $scripts: { pre: './scripts/pre.js' } } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.sharedPre, path.resolve(tmp, './scripts/pre.js'));
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns sharedPost as absolute path from $shared.$scripts.post', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { $shared: { $scripts: { post: './scripts/post.js' } } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.sharedPost, path.resolve(tmp, './scripts/post.js'));
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns envPre as absolute path from envName.$scripts.pre', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { dev: { $scripts: { pre: './dev-pre.js' } } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.envPre, path.resolve(tmp, './dev-pre.js'));
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns envPost as absolute path from envName.$scripts.post', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { dev: { $scripts: { post: './dev-post.js' } } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.envPost, path.resolve(tmp, './dev-post.js'));
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns undefined fields for partial $scripts block', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { dev: { $scripts: { pre: './pre.js' } } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.envPre, path.resolve(tmp, './pre.js'));
+        assert.equal(result.envPost, undefined);
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns all undefined fields when no $scripts key exists', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { dev: { baseUrl: 'http://localhost' } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.sharedPre, undefined);
+        assert.equal(result.sharedPost, undefined);
+        assert.equal(result.envPre, undefined);
+        assert.equal(result.envPost, undefined);
+      } finally {
+        cleanup(tmp);
+      }
+    });
+
+    it('returns all undefined when env file does not exist', () => {
+      const result = loadEnvScripts('/non/existent/http-client.env.json', 'dev');
+      assert.equal(result.sharedPre, undefined);
+      assert.equal(result.sharedPost, undefined);
+      assert.equal(result.envPre, undefined);
+      assert.equal(result.envPost, undefined);
+    });
+
+    it('ignores non-object $scripts value gracefully', () => {
+      const tmp = makeTmpDir();
+      try {
+        const envFile = path.join(tmp, 'http-client.env.json');
+        writeJson(envFile, { dev: { $scripts: 'not-an-object' } });
+        const result = loadEnvScripts(envFile, 'dev');
+        assert.equal(result.envPre, undefined);
+        assert.equal(result.envPost, undefined);
       } finally {
         cleanup(tmp);
       }
