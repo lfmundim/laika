@@ -435,4 +435,34 @@ POST https://{{baseUrl}}/users`,
 			assert.equal(result.requests[0].preScript, './scripts/before.js');
 		});
 	});
+
+	describe('comment lines within headers section', () => {
+		it('skips # comment lines between headers', () => {
+			const text = [
+				'GET https://api.example.com',
+				'Accept: application/json',
+				'# this is a comment',
+				'X-Custom: value',
+			].join('\n');
+			const result = parseHttpFile(text);
+			const req = result.requests[0];
+			assert.equal(req.headers.length, 2);
+			assert.equal(req.headers[0].name, 'Accept');
+			assert.equal(req.headers[1].name, 'X-Custom');
+		});
+
+		it('skips // comment lines between headers', () => {
+			const text = [
+				'GET https://api.example.com',
+				'Accept: application/json',
+				'// another comment',
+				'X-Custom: value',
+			].join('\n');
+			const result = parseHttpFile(text);
+			const req = result.requests[0];
+			assert.equal(req.headers.length, 2);
+			assert.equal(req.headers[0].name, 'Accept');
+			assert.equal(req.headers[1].name, 'X-Custom');
+		});
+	});
 });
