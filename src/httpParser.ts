@@ -43,6 +43,10 @@ export interface ParsedRequest {
   index: number;
   /** Raw text of the block (after variable substitution is NOT applied here; use resolveRequest) */
   raw: string;
+  /** Relative path to a pre-request .js script file. From `# @pre <path>`. */
+  preScript?: string;
+  /** Relative path to a post-request .js script file. From `# @post <path>`. */
+  postScript?: string;
 }
 
 export interface ParsedFile {
@@ -202,9 +206,11 @@ function parseBlock(
 ): ParsedRequest | null {
   const lines = block.content.split('\n');
   let nameAnnotation = '';
+  let preScriptAnnotation = '';
+  let postScriptAnnotation = '';
   let requestLineIndex = -1;
 
-  // Scan for `# @name` annotation and the first HTTP method line
+  // Scan for `# @name`, `# @pre`, `# @post` annotations and the first HTTP method line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
@@ -212,6 +218,20 @@ function parseBlock(
     const nameMatch = line.match(/^(?:#|\/\/)\s*@name\s+(.+)/);
     if (nameMatch) {
       nameAnnotation = nameMatch[1].trim();
+      continue;
+    }
+
+    // @pre annotation — path to a pre-request script
+    const preMatch = line.match(/^(?:#|\/\/)\s*@pre\s+(.+)/);
+    if (preMatch) {
+      preScriptAnnotation = preMatch[1].trim();
+      continue;
+    }
+
+    // @post annotation — path to a post-request script
+    const postMatch = line.match(/^(?:#|\/\/)\s*@post\s+(.+)/);
+    if (postMatch) {
+      postScriptAnnotation = postMatch[1].trim();
       continue;
     }
 
@@ -300,6 +320,8 @@ function parseBlock(
     description,
     index,
     raw: block.content,
+    preScript: preScriptAnnotation || undefined,
+    postScript: postScriptAnnotation || undefined,
   };
 }
 

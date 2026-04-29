@@ -378,4 +378,91 @@ POST https://{{baseUrl}}/users`,
 			assert.equal(names.length, 0);
 		});
 	});
+
+	describe('@pre / @post annotations', () => {
+		it('parses # @pre annotation', () => {
+			const text = `# @pre ./scripts/before.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].preScript, './scripts/before.js');
+		});
+
+		it('parses # @post annotation', () => {
+			const text = `# @post ./scripts/after.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].postScript, './scripts/after.js');
+		});
+
+		it('parses both @pre and @post on the same request', () => {
+			const text = `# @pre ./scripts/before.js\n# @post ./scripts/after.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].preScript, './scripts/before.js');
+			assert.equal(result.requests[0].postScript, './scripts/after.js');
+		});
+
+		it('supports // @pre comment style', () => {
+			const text = `// @pre ./scripts/before.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].preScript, './scripts/before.js');
+		});
+
+		it('supports // @post comment style', () => {
+			const text = `// @post ./scripts/after.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].postScript, './scripts/after.js');
+		});
+
+		it('@pre and @post annotations are excluded from description', () => {
+			const text = `# @pre ./scripts/before.js\n# A real description\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].description, 'A real description');
+		});
+
+		it('preScript is undefined when no @pre annotation is present', () => {
+			const text = `GET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].preScript, undefined);
+		});
+
+		it('postScript is undefined when no @post annotation is present', () => {
+			const text = `GET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].postScript, undefined);
+		});
+
+		it('@pre path is preserved as-is (not resolved to absolute)', () => {
+			const text = `# @pre ./scripts/before.js\nGET https://api.example.com`;
+			const result = parseHttpFile(text);
+			assert.equal(result.requests[0].preScript, './scripts/before.js');
+		});
+	});
+
+	describe('comment lines within headers section', () => {
+		it('skips # comment lines between headers', () => {
+			const text = [
+				'GET https://api.example.com',
+				'Accept: application/json',
+				'# this is a comment',
+				'X-Custom: value',
+			].join('\n');
+			const result = parseHttpFile(text);
+			const req = result.requests[0];
+			assert.equal(req.headers.length, 2);
+			assert.equal(req.headers[0].name, 'Accept');
+			assert.equal(req.headers[1].name, 'X-Custom');
+		});
+
+		it('skips // comment lines between headers', () => {
+			const text = [
+				'GET https://api.example.com',
+				'Accept: application/json',
+				'// another comment',
+				'X-Custom: value',
+			].join('\n');
+			const result = parseHttpFile(text);
+			const req = result.requests[0];
+			assert.equal(req.headers.length, 2);
+			assert.equal(req.headers[0].name, 'Accept');
+			assert.equal(req.headers[1].name, 'X-Custom');
+		});
+	});
 });

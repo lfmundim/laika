@@ -16,6 +16,17 @@ export interface EnvVariable {
   value: string;
 }
 
+export interface EnvScripts {
+  /** Absolute path from `$shared.$scripts.pre` */
+  sharedPre?: string;
+  /** Absolute path from `$shared.$scripts.post` */
+  sharedPost?: string;
+  /** Absolute path from `envName.$scripts.pre` */
+  envPre?: string;
+  /** Absolute path from `envName.$scripts.post` */
+  envPost?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Internal JSON shape
 // ---------------------------------------------------------------------------
@@ -24,6 +35,8 @@ export interface EnvVariable {
 // Encrypted). We only support plain strings; provider objects are silently skipped.
 type EnvBlock = Record<string, string | object>;
 type EnvJson  = Record<string, EnvBlock>;
+
+interface ScriptsBlock { pre?: string; post?: string; }
 
 function readJson(filePath: string): EnvJson | undefined {
   try {
@@ -112,6 +125,38 @@ export function loadEnvironment(envFilePath: string, envName: string): EnvVariab
   applyBlock(user[envName],   merged);
 
   return Object.entries(merged).map(([name, value]) => ({ name, value }));
+}
+
+/**
+ * Load pre/post script paths for the active environment from an `http-client.env.json` file.
+ * Paths in the JSON are relative to the directory containing the env file; returned paths are absolute.
+ * Only the main env file is consulted — the `.user` override is not used for scripts.
+ */
+export function loadEnvScripts(envFilePath: string, envName: string): EnvScripts {
+  const main = readJson(envFilePath) ?? {};
+  const dir = path.dirname(envFilePath);
+  const resolve = (p: string | undefined) => p ? path.resolve(dir, p) : undefined;
+
+  const sharedScripts = extractScriptsBlock(main['$shared']);
+  const envScripts    = extractScriptsBlock(main[envName]);
+
+  return {
+    sharedPre:  resolve(sharedScripts?.pre),
+    sharedPost: resolve(sharedScripts?.post),
+    envPre:     resolve(envScripts?.pre),
+    envPost:    resolve(envScripts?.post),
+  };
+}
+
+function extractScriptsBlock(block: EnvBlock | undefined): ScriptsBlock | undefined {
+  if (!block || typeof block !== 'object') { return undefined; }
+  const s = (block as Record<string, unknown>)['$scripts'];
+  if (!s || typeof s !== 'object') { return undefined; }
+  const scripts = s as Record<string, unknown>;
+  return {
+    pre:  typeof scripts['pre']  === 'string' ? scripts['pre']  : undefined,
+    post: typeof scripts['post'] === 'string' ? scripts['post'] : undefined,
+  };
 }
 
 function applyBlock(block: EnvBlock | undefined, target: Record<string, string>): void {

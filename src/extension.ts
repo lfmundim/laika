@@ -21,6 +21,9 @@ export function activate(context: vscode.ExtensionContext) {
   const log = debugEnabled ? vscode.window.createOutputChannel('Laika Debug') : undefined;
   if (log) { context.subscriptions.push(log); }
 
+  const scriptsChannel = vscode.window.createOutputChannel('Laika Scripts');
+  context.subscriptions.push(scriptsChannel);
+
   const provider = new HttpFilesProvider(
     context,
     () => context.workspaceState.get(ACTIVE_ENV_KEY, NONE_ENV) as string,
@@ -118,6 +121,7 @@ export function activate(context: vscode.ExtensionContext) {
       RequestPanel.show(
         item.parsed, fileVars, item.fileUri.fsPath, context, envVars, activeEnvName,
         historyStore, () => historyProvider.refresh(),
+        scriptsChannel,
       );
     }),
 

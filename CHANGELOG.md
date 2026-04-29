@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.x-beta] — 2026-04-28
+
+### Added
+- **Pre/post request scripts** — run JavaScript before and after any HTTP request:
+  - Per-request: `# @pre ./path/script.js` and `# @post ./path/script.js` annotations in `.http` files
+  - Environment-wide: `$scripts` key in `http-client.env.json` at `$shared` level or per-environment
+  - Pre-scripts can mutate the request URL, method, headers, and body before it is sent
+  - Post-scripts can read the full response and mutate variables (mutations are persisted back to the `.http` file, enabling request chaining)
+  - Scripts run in a sandboxed Node.js `vm` context with `async`/`await` support
+  - `console.log/warn/error` inside scripts routes to the new **Laika Scripts** output channel (always visible)
+  - Script errors shown as VS Code error notifications and logged to **Laika Scripts**
+  - Configurable per-script timeout via `laika.scriptTimeout` setting (default: 10 seconds)
+  - Execution order: `$shared` pre → environment pre → request pre → HTTP → request post → environment post → `$shared` post
+
+---
+
 ## [1.0.x-beta] — 2026-04-21
 
 ### Added

@@ -76,6 +76,13 @@
           "type": "boolean",
           "default": false,
           "description": "Write diagnostic information to the 'Laika Debug' Output channel. Enable when troubleshooting variable loading or environment issues, then share the output when filing a bug report."
+        },
+        "laika.scriptTimeout": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Maximum time in seconds each pre- or post-request script may run before a timeout error is raised. Applies to each individual script invocation."
         }
       }
     },
@@ -139,7 +146,7 @@
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.0",
-    "c8": "^9.1.0",
+    "c8": "^11.0.0",
     "esbuild": "^0.27.3",
     "eslint": "^9.39.3",
     "mocha": "^11.7.5",

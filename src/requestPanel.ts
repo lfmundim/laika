@@ -4,10 +4,12 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as http from 'http';
+import * as path from 'path';
 import { URL } from 'url';
 import { ParsedRequest, ParsedVariable, resolveRequest } from './httpParser';
-import { EnvVariable } from './envLoader';
+import { EnvVariable, EnvScripts, findEnvFileForHttp, loadEnvScripts } from './envLoader';
 import { HistoryStore } from './historyStore';
+import { runScript, type PreScriptContext, type PostScriptContext, type OutputChannel } from './scriptRunner';
 
 // ---------------------------------------------------------------------------
 // Panel manager
@@ -24,6 +26,7 @@ export class RequestPanel {
   private filePath: string;
   private historyStore: HistoryStore | undefined;
   private historyRefreshCallback: (() => void) | undefined;
+  private scriptsChannel: OutputChannel | undefined;
 
   static show(
     request: ParsedRequest,
@@ -34,6 +37,7 @@ export class RequestPanel {
     envName: string = '',
     historyStore?: HistoryStore,
     historyRefreshCallback?: () => void,
+    scriptsChannel?: OutputChannel,
   ): void {
     if (RequestPanel.current) {
       // Update content first (posts a message to the live webview DOM), then reveal.
@@ -44,6 +48,7 @@ export class RequestPanel {
       RequestPanel.current.update(request, fileVars, filePath, envVars, envName);
       RequestPanel.current.historyStore = historyStore;
       RequestPanel.current.historyRefreshCallback = historyRefreshCallback;
+      RequestPanel.current.scriptsChannel = scriptsChannel;
       // Reveal in the panel's current column to avoid inadvertent column moves that
       // force a webview reload (passing ViewColumn.Beside could move the panel if the
       // user's layout has changed since the panel was created).
@@ -51,7 +56,7 @@ export class RequestPanel {
       return;
     }
     RequestPanel.current = new RequestPanel(
-      request, fileVars, filePath, context, envVars, envName, historyStore, historyRefreshCallback,
+      request, fileVars, filePath, context, envVars, envName, historyStore, historyRefreshCallback, scriptsChannel,
     );
   }
 
@@ -83,6 +88,7 @@ export class RequestPanel {
     envName: string,
     historyStore?: HistoryStore,
     historyRefreshCallback?: () => void,
+    scriptsChannel?: OutputChannel,
   ) {
     this.request = request;
     this.fileVars = fileVars;
@@ -91,6 +97,7 @@ export class RequestPanel {
     this.envName = envName;
     this.historyStore = historyStore;
     this.historyRefreshCallback = historyRefreshCallback;
+    this.scriptsChannel = scriptsChannel;
 
     this.panel = vscode.window.createWebviewPanel(
       'laikaRequest',
@@ -146,14 +153,116 @@ export class RequestPanel {
     const resolved = resolveRequest(this.request, this.fileVars, this.envVars);
 
     const headers: Record<string, string> = {};
-    for (const h of resolved.headers) {
-      headers[h.name] = h.value;
+    for (const h of resolved.headers) { headers[h.name] = h.value; }
+
+    // Build mutable variables map (env < file priority; scripts can override)
+    const variables: Record<string, string> = {};
+    for (const v of this.envVars)  { variables[v.name] = v.value; }
+    for (const v of this.fileVars) { variables[v.name] = v.value; }
+    const originalVariables = { ...variables };
+
+    // Read-only env snapshot exposed to pre-scripts
+    const env: Record<string, string> = {};
+    for (const v of this.envVars) { env[v.name] = v.value; }
+
+    const httpDir = path.dirname(this.filePath);
+    const resolveRel = (p: string | undefined) => p ? path.resolve(httpDir, p) : undefined;
+    const envScripts = this.loadEnvScriptsForCurrentEnv();
+
+    // Mutable request context — pre-scripts may mutate url, method, headers, body
+    const requestCtx = {
+      url: resolved.url,
+      method: resolved.method,
+      headers: { ...headers },
+      body: resolved.body,
+    };
+
+    // Run pre-scripts: $shared → env → per-request
+    if (this.scriptsChannel) {
+      const preScriptPaths = [
+        envScripts?.sharedPre,
+        envScripts?.envPre,
+        resolveRel(this.request.preScript),
+      ].filter((p): p is string => p !== undefined);
+
+      // Reveal the Output panel so console.log output is visible without manual steps.
+      // preserveFocus: true keeps the cursor in the editor/webview.
+      if (preScriptPaths.length > 0) {
+        this.scriptsChannel.show?.(true);
+      }
+
+      for (const scriptPath of preScriptPaths) {
+        const preCtx: PreScriptContext = {
+          request: requestCtx,
+          variables,
+          env,
+          console: undefined as never, // injected by runScript
+        };
+        try {
+          await runScript(scriptPath, preCtx, this.scriptsChannel, {
+            timeoutSeconds: vscode.workspace.getConfiguration('laika').get<number>('scriptTimeout', 10),
+            onError: (msg) => { vscode.window.showErrorMessage(msg); },
+          });
+        } catch {
+          // runScript already showed the error notification; abort the request
+          this.panel.webview.postMessage({
+            type: 'error',
+            message: `Pre-script failed: ${path.basename(scriptPath)}. Check the "Laika Scripts" output channel.`,
+          });
+          return;
+        }
+      }
     }
 
     try {
       const t0 = Date.now();
-      const { status, statusText, responseHeaders, body } = await this.makeRequest(resolved.url, resolved.method, headers, resolved.body);
+      const { status, statusText, responseHeaders, body } = await this.makeRequest(
+        requestCtx.url, requestCtx.method, requestCtx.headers, requestCtx.body,
+      );
       const duration = Date.now() - t0;
+
+      // Run post-scripts: per-request → env → $shared (reverse of pre-script order)
+      if (this.scriptsChannel) {
+        const postScriptPaths = [
+          resolveRel(this.request.postScript),
+          envScripts?.envPost,
+          envScripts?.sharedPost,
+        ].filter((p): p is string => p !== undefined);
+
+        if (postScriptPaths.length > 0) {
+          this.scriptsChannel.show?.(true);
+        }
+
+        for (const scriptPath of postScriptPaths) {
+          const postCtx: PostScriptContext = {
+            request: Object.freeze({ ...requestCtx }),
+            response: {
+              status,
+              statusText,
+              headers: responseHeaders,
+              body,
+              duration,
+              json(): unknown {
+                try { return JSON.parse(body); } catch { return null; }
+              },
+            },
+            variables,
+            console: undefined as never, // injected by runScript
+          };
+          try {
+            await runScript(scriptPath, postCtx, this.scriptsChannel, {
+              timeoutSeconds: vscode.workspace.getConfiguration('laika').get<number>('scriptTimeout', 10),
+              onError: (msg) => { vscode.window.showErrorMessage(msg); },
+            });
+          } catch {
+            // Post-script failures are logged but do not suppress the response
+            this.scriptsChannel.appendLine('[Laika Scripts] Post-script failed, continuing with response.');
+          }
+        }
+      }
+
+      // Flush any variable mutations back to the .http file
+      await this.flushMutatedVariables(variables, originalVariables);
 
       const contentType = responseHeaders['content-type'] ?? '';
       const isJson = contentType.includes('application/json');
@@ -169,7 +278,7 @@ export class RequestPanel {
       });
 
       this.historyStore?.add({
-        request: { method: resolved.method, url: resolved.url, headers, body: resolved.body },
+        request: { method: requestCtx.method, url: requestCtx.url, headers: requestCtx.headers, body: requestCtx.body },
         response: { status, statusText, headers: responseHeaders, body, duration },
         sourceFile: this.filePath,
         requestName: this.request.name,
@@ -177,16 +286,40 @@ export class RequestPanel {
       this.historyRefreshCallback?.();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      const message = `Failed to fetch ${resolved.url}\n\nError: ${errorMsg}\n\n(Check certificate validity for HTTPS, firewall, or if the server is running)`;
+      const message = `Failed to fetch ${requestCtx.url}\n\nError: ${errorMsg}\n\n(Check certificate validity for HTTPS, firewall, or if the server is running)`;
       this.panel.webview.postMessage({ type: 'error', message });
 
       this.historyStore?.add({
-        request: { method: resolved.method, url: resolved.url, headers, body: resolved.body },
+        request: { method: requestCtx.method, url: requestCtx.url, headers: requestCtx.headers, body: requestCtx.body },
         error: message,
         sourceFile: this.filePath,
         requestName: this.request.name,
       });
       this.historyRefreshCallback?.();
+    }
+  }
+
+  /** Load env-level script paths for the currently active environment. */
+  private loadEnvScriptsForCurrentEnv(): EnvScripts | undefined {
+    if (!this.envName || this.envName === '<none>') { return undefined; }
+    const envFilePath = findEnvFileForHttp(this.filePath);
+    if (!envFilePath) { return undefined; }
+    return loadEnvScripts(envFilePath, this.envName);
+  }
+
+  /**
+   * Write any variables that were mutated by scripts back to the .http file.
+   * Only variables that already have a file-level declaration (line >= 0) are written;
+   * env-only variables are silently skipped.
+   */
+  private async flushMutatedVariables(
+    current: Record<string, string>,
+    original: Record<string, string>,
+  ): Promise<void> {
+    for (const [name, value] of Object.entries(current)) {
+      if (original[name] !== value) {
+        await this.updateVariable(name, value);
+      }
     }
   }
 
