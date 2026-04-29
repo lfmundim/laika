@@ -9,7 +9,7 @@ import { URL } from 'url';
 import { ParsedRequest, ParsedVariable, resolveRequest } from './httpParser';
 import { EnvVariable, EnvScripts, findEnvFileForHttp, loadEnvScripts } from './envLoader';
 import { HistoryStore } from './historyStore';
-import { runScript, type PreScriptContext, type PostScriptContext } from './scriptRunner';
+import { runScript, type PreScriptContext, type PostScriptContext, type OutputChannel } from './scriptRunner';
 
 // ---------------------------------------------------------------------------
 // Panel manager
@@ -26,7 +26,7 @@ export class RequestPanel {
   private filePath: string;
   private historyStore: HistoryStore | undefined;
   private historyRefreshCallback: (() => void) | undefined;
-  private scriptsChannel: vscode.OutputChannel | undefined;
+  private scriptsChannel: OutputChannel | undefined;
 
   static show(
     request: ParsedRequest,
@@ -37,7 +37,7 @@ export class RequestPanel {
     envName: string = '',
     historyStore?: HistoryStore,
     historyRefreshCallback?: () => void,
-    scriptsChannel?: vscode.OutputChannel,
+    scriptsChannel?: OutputChannel,
   ): void {
     if (RequestPanel.current) {
       // Update content first (posts a message to the live webview DOM), then reveal.
@@ -88,7 +88,7 @@ export class RequestPanel {
     envName: string,
     historyStore?: HistoryStore,
     historyRefreshCallback?: () => void,
-    scriptsChannel?: vscode.OutputChannel,
+    scriptsChannel?: OutputChannel,
   ) {
     this.request = request;
     this.fileVars = fileVars;
@@ -188,7 +188,7 @@ export class RequestPanel {
       // Reveal the Output panel so console.log output is visible without manual steps.
       // preserveFocus: true keeps the cursor in the editor/webview.
       if (preScriptPaths.length > 0) {
-        this.scriptsChannel.show(true);
+        this.scriptsChannel.show?.(true);
       }
 
       for (const scriptPath of preScriptPaths) {
@@ -199,7 +199,10 @@ export class RequestPanel {
           console: undefined as never, // injected by runScript
         };
         try {
-          await runScript(scriptPath, preCtx, this.scriptsChannel);
+          await runScript(scriptPath, preCtx, this.scriptsChannel, {
+            timeoutSeconds: vscode.workspace.getConfiguration('laika').get<number>('scriptTimeout', 10),
+            onError: (msg) => { vscode.window.showErrorMessage(msg); },
+          });
         } catch {
           // runScript already showed the error notification; abort the request
           this.panel.webview.postMessage({
@@ -227,7 +230,7 @@ export class RequestPanel {
         ].filter((p): p is string => p !== undefined);
 
         if (postScriptPaths.length > 0) {
-          this.scriptsChannel.show(true);
+          this.scriptsChannel.show?.(true);
         }
 
         for (const scriptPath of postScriptPaths) {
@@ -247,7 +250,10 @@ export class RequestPanel {
             console: undefined as never, // injected by runScript
           };
           try {
-            await runScript(scriptPath, postCtx, this.scriptsChannel);
+            await runScript(scriptPath, postCtx, this.scriptsChannel, {
+              timeoutSeconds: vscode.workspace.getConfiguration('laika').get<number>('scriptTimeout', 10),
+              onError: (msg) => { vscode.window.showErrorMessage(msg); },
+            });
           } catch {
             // Post-script failures are logged but do not suppress the response
             this.scriptsChannel.appendLine('[Laika Scripts] Post-script failed, continuing with response.');

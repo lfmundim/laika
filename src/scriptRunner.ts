@@ -1,7 +1,5 @@
-// Code coverage excluded: depends on vscode APIs and vm module requiring the extension host.
 import * as vm from 'vm';
 import * as fs from 'fs';
-import * as vscode from 'vscode';
 
 // ---------------------------------------------------------------------------
 // Public context types
@@ -53,6 +51,28 @@ interface ScriptConsole {
 }
 
 // ---------------------------------------------------------------------------
+// OutputChannel interface (subset of vscode.OutputChannel — keeps this file
+// free of the vscode dependency so it can be unit-tested without the extension host)
+// ---------------------------------------------------------------------------
+
+export interface OutputChannel {
+  appendLine(value: string): void;
+  /** Optional — when present, reveals the output panel (e.g. vscode.OutputChannel.show). */
+  show?(preserveFocus?: boolean): void;
+}
+
+// ---------------------------------------------------------------------------
+// Runner options
+// ---------------------------------------------------------------------------
+
+export interface ScriptRunnerOptions {
+  /** Seconds before the synchronous portion of a script is timed out. Default: 10. */
+  timeoutSeconds?: number;
+  /** Called with a user-visible message when a script error occurs (e.g. show a VS Code notification). */
+  onError?: (message: string) => void;
+}
+
+// ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
 
@@ -65,8 +85,8 @@ interface ScriptConsole {
  * the object in-place rather than copying it.
  *
  * Scripts are wrapped in an async IIFE so top-level `await` is supported.
- * The `laika.scriptTimeout` setting (seconds, default 10) guards the
- * synchronous portion of execution; async continuations run to completion.
+ * `options.timeoutSeconds` (default 10) guards the synchronous portion of
+ * execution; async continuations run to completion.
  *
  * @returns `true` if the script ran successfully, `false` if the file was
  *          not found (the caller may choose to skip rather than abort).
@@ -75,7 +95,8 @@ interface ScriptConsole {
 export async function runScript(
   scriptPath: string,
   context: PreScriptContext | PostScriptContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: OutputChannel,
+  options?: ScriptRunnerOptions,
 ): Promise<boolean> {
   let code: string;
   try {
@@ -85,9 +106,8 @@ export async function runScript(
     return false;
   }
 
-  const timeoutSeconds = vscode.workspace
-    .getConfiguration('laika')
-    .get<number>('scriptTimeout', 10);
+  const timeoutMs = (options?.timeoutSeconds ?? 10) * 1000;
+  const onError = options?.onError ?? ((_msg: string) => undefined);
 
   // Build the console implementation that routes to the output channel.
   const scriptConsole = {
@@ -113,13 +133,11 @@ export async function runScript(
   let resultPromise: Promise<unknown>;
   try {
     const script = new vm.Script(wrapped, { filename: scriptPath });
-    resultPromise = script.runInContext(vmContext, {
-      timeout: timeoutSeconds * 1000,
-    }) as Promise<unknown>;
+    resultPromise = script.runInContext(vmContext, { timeout: timeoutMs }) as Promise<unknown>;
   } catch (err) {
     const msg = `[Laika Scripts] Error in ${scriptPath}: ${err instanceof Error ? err.message : String(err)}`;
     outputChannel.appendLine(msg);
-    vscode.window.showErrorMessage(msg);
+    onError(msg);
     throw err;
   }
 
@@ -128,7 +146,7 @@ export async function runScript(
   } catch (err) {
     const msg = `[Laika Scripts] Error in ${scriptPath}: ${err instanceof Error ? err.message : String(err)}`;
     outputChannel.appendLine(msg);
-    vscode.window.showErrorMessage(msg);
+    onError(msg);
     throw err;
   }
 
